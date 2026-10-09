@@ -64,7 +64,7 @@
   body.playing { overflow: hidden; height: 100%; user-select: none; }
   body.playing #site { display: none; }
   canvas#three { position: fixed; inset: 0; width: 100%; height: 100%; display: none; z-index: 1; transition: filter 1.2s ease; }
-  canvas#repair { position: fixed; inset: 0; width: 100%; height: 100%; display: none; z-index: 4; cursor: crosshair; }
+  canvas#repair { position: fixed; inset: 0; width: 100%; height: 100%; display: none; z-index: 4; cursor: crosshair; touch-action: none; }   /* a finger taps and drags on it: no scrolling or zooming */
   canvas#cockpit { position: fixed; inset: 0; width: 100%; height: 100%; display: none; z-index: 3; pointer-events: none; }
 
   /* helmet visor overlay for 3D phase */
@@ -856,7 +856,7 @@
   #play .touchNote { display: none; max-width: 40ch; margin: 18px auto 0; padding: 12px 16px; border-radius: 12px; background: rgba(255,138,60,0.10);
                      font: 500 14px/1.55 var(--sans); color: #f0dccb; text-align: center; }
   #play .touchNote b { color: var(--amber); }
-  @media (hover: none) and (pointer: coarse) { #play .touchNote { display: block; } }
+  @media (hover: none) and (pointer: coarse) { #play .touchNote { display: block; } #play .ctrl { display: none; } }
   @media (prefers-reduced-motion: reduce) { .prof { transform: none !important; } .prof .pic .scan::after, .prof .lamp { animation: none; } }
   #playBtn {
     margin-top: 26px; font-family: var(--mono); font-size: 28px; letter-spacing: 6px; text-transform: uppercase;
@@ -1131,7 +1131,7 @@
       <p>The game opens in its own tab and takes the whole window. Press <b>&#9664; WEBSITE</b> under the title on the
         game's menu whenever you want to come back here.</p>
       <button id="playBtn">&#9654; Play</button>
-      <p class="touchNote"><b>Keyboard and mouse needed.</b> Red Dust has no touch controls yet — open this page on a computer to play.</p>
+      <p class="touchNote"><b>On a phone or tablet:</b> on-screen controls. Your left thumb moves, your right thumb looks, and each phase's buttons sit under your right hand. Hold the phone sideways. It downloads about 15 MB to start and more as you go.</p>
       <div class="ctrl"><b>WASD</b> move · <b>mouse</b> look · <b>SPACE</b> jump · <b>SHIFT</b> sprint / nitro · <b>E</b> interact · <b>Q</b> set down · <b>F</b> hop in and out of the rover</div>
     </div>
   </section>
@@ -2044,7 +2044,8 @@ const keys = {};
    has always been its own key (rd_quality) and stays there. Edited from the settings panel (pause menu or title). */
 const SET = (() => {
   let s = {}; try { s = JSON.parse(localStorage.getItem('rd_settings') || '{}') || {}; } catch (e) {}
-  return { vol: s.vol == null ? 1 : Math.max(0, Math.min(1, +s.vol)), music: s.music == null ? 0.7 : Math.max(0, Math.min(1, +s.music)), sens: s.sens == null ? 1 : Math.max(0.2, Math.min(3, +s.sens)), invertY: !!s.invertY, keys: (s.keys && typeof s.keys === 'object') ? s.keys : {} };
+  return { vol: s.vol == null ? 1 : Math.max(0, Math.min(1, +s.vol)), music: s.music == null ? 0.7 : Math.max(0, Math.min(1, +s.music)), sens: s.sens == null ? 1 : Math.max(0.2, Math.min(3, +s.sens)), invertY: !!s.invertY, keys: (s.keys && typeof s.keys === 'object') ? s.keys : {},
+    touch: ['auto', 'on', 'off'].includes(s.touch) ? s.touch : 'auto' };   // the on-screen controls: auto (a touch-only device, or the first touch), on, off
 })();
 function saveSettings() { try { localStorage.setItem('rd_settings', JSON.stringify(SET)); } catch (e) {} }
 const PAUSE = { on: false, t: -1e9, selfUnlock: -1e9, el: null, view: 'main', from: null };
@@ -2147,7 +2148,7 @@ function installInput() {
   const canvas = document.getElementById('three');
   canvas.addEventListener('click', () => {
     if (state === 'space') { SPACE.fireQueued = true; return; }
-    if (fpvOwner()) canvas.requestPointerLock();
+    if (fpvOwner() && !TOUCH.on) canvas.requestPointerLock();   // with the touch layer up the look pad turns the view; no mouse to capture
   });
   document.addEventListener('pointerlockchange', () => {
     const locked = document.pointerLockElement === canvas, C = fpvOwner();
@@ -2224,6 +2225,8 @@ const QUALITY_LEVELS = ['high', 'balanced', 'low'];
 let QUALITY = (() => { try { const q = localStorage.getItem('rd_quality'); return QUALITY_LEVELS.includes(q) ? q : 'high'; } catch (e) { return 'high'; } })();
 function qPixelRatio() { return Math.min(devicePixelRatio || 1, QUALITY === 'high' ? 2 : QUALITY === 'balanced' ? 1.5 : 1); }
 function shadowRes(n) { return QUALITY === 'low' ? Math.max(512, n / 2) : n; }
+// how many particle sprites a scene may hold at once (each one is a draw call: the pad shots ran to six hundred at full)
+function PART_K() { return QUALITY === 'high' ? 1 : QUALITY === 'balanced' ? 0.6 : 0.35; }
 function setQuality(q) {
   QUALITY = q; try { localStorage.setItem('rd_quality', q); } catch (e) {}
   if (three && three.renderer) { three.renderer.setPixelRatio(qPixelRatio()); three.renderer.setSize(innerWidth, innerHeight, false); if (typeof resizeComposer === 'function') resizeComposer(); }
@@ -3194,7 +3197,7 @@ function emitPuff(scene, o) {
   let P = PART.byScene.get(scene); if (!P) { P = { list: [], last: performance.now() }; PART.byScene.set(scene, P); }
   let p = P.list.find(q => !q.alive && q.add === !!o.additive);
   if (!p) {
-    if (P.list.length >= (o.cap || 220)) { p = P.list.reduce((a, b) => (a.age / a.life > b.age / b.life ? a : b)); }
+    if (P.list.length >= Math.max(40, Math.round((o.cap || 220) * PART_K()))) { p = P.list.reduce((a, b) => (a.age / a.life > b.age / b.life ? a : b)); }
     else {
       const m = new THREE.SpriteMaterial({ map: puffTexture(), transparent: true, depthWrite: false, blending: o.additive ? THREE.AdditiveBlending : THREE.NormalBlending, fog: true });
       p = { s: new THREE.Sprite(m), add: !!o.additive, v: new THREE.Vector3() }; scene.add(p.s); P.list.push(p);
@@ -9919,7 +9922,8 @@ function resumeBase() { state = 'base'; ambience(BASE.z > 6.4 ? 'surface' : 'hab
 
 function switchCharacter() {
   if (state === 'houston') { resumeBase(); showSwitchBanner('MARK · MARS'); }
-  else { if (!HOUSTON.inited) initHouston(); state = 'houston'; ambience('station'); setBloom(0.18, 0.45, 0.95); setSSAO(true); exposure(0.86); visor.style.display = 'none'; lockHint.style.display = 'block'; document.getElementById('hudPhase').textContent = 'SUPPLY STATION — BUILD THE ROCKET'; showSwitchBanner('HOUSTON · SUPPLY STATION'); }
+  else { if (!HOUSTON.inited && !GAME_LATE_READY) { gameLoadGate(switchCharacter, true); return; }   // Houston's crowd, hand and props are in the second set
+    if (!HOUSTON.inited) initHouston(); state = 'houston'; ambience('station'); setBloom(0.18, 0.45, 0.95); setSSAO(true); exposure(0.86); visor.style.display = 'none'; lockHint.style.display = 'block'; document.getElementById('hudPhase').textContent = 'SUPPLY STATION — BUILD THE ROCKET'; showSwitchBanner('HOUSTON · SUPPLY STATION'); }
 }
 
 function showSwitchBanner(name) {
@@ -12332,7 +12336,7 @@ function initAscent3D() {
 
   // the planet â€” icosahedron, no pole fan. detail 5 is ~4.7km triangles at this radius; the old
   // comment claiming 1.2km at detail 7 was wrong by a factor of 16 and the colour octaves chased it.
-  const mg = new THREE.IcosahedronGeometry(ASC_R, 6);   // detail 6 (~2.3 km triangles) and smooth-shaded below: from orbit the facets of 5 showed
+  const mg = new THREE.IcosahedronGeometry(ASC_R, QUALITY === 'high' ? 6 : 5);   // detail 6 (~2.3 km triangles) and smooth-shaded below: from orbit the facets of 5 showed; 5 (a quarter of the triangles) below high
   const mp = mg.attributes.position, mcol = [], mc = new THREE.Color(), mv = new THREE.Vector3();
   for (let i = 0; i < mp.count; i++) {
     mv.set(mp.getX(i), mp.getY(i), mp.getZ(i));
@@ -12355,7 +12359,7 @@ function initAscent3D() {
   limb.position.y = -ASC_R - 3; scene.add(limb); ASCENT.limb = limb;
 
   // near ground â€” 160x160, not the old 301x301 (~180k triangles for something visible under a second)
-  const pg = new THREE.PlaneGeometry(ASC_PATCH * 2, ASC_PATCH * 2, 160, 160); pg.rotateX(-Math.PI / 2);
+  const PSEG = QUALITY === 'low' ? 100 : 160, pg = new THREE.PlaneGeometry(ASC_PATCH * 2, ASC_PATCH * 2, PSEG, PSEG); pg.rotateX(-Math.PI / 2);
   const pp = pg.attributes.position;
   for (let i = 0; i < pp.count; i++) pp.setY(i, padGroundY(pp.getX(i), pp.getZ(i)));
   pg.computeVertexNormals();
@@ -12423,8 +12427,9 @@ function initAscent3D() {
     rk.position.set(x, padGroundY(x, z) + r * 0.22, z);      // on the real ground, relief included
     scene.add(rk);
   }
-  for (let i = 0; i < 16; i++) {                            // a ring of flat-topped mesas on the horizon, for the pad shots (the relief alone gave them nothing to look at)
-    const a = i / 16 * Math.PI * 2 + rand(-0.15, 0.15), d = rand(2600, 4300), x = Math.cos(a) * d, z = Math.sin(a) * d, r = rand(140, 260);
+  const NMESA = QUALITY === 'low' ? 10 : 16;
+  for (let i = 0; i < NMESA; i++) {                         // a ring of flat-topped mesas on the horizon, for the pad shots (the relief alone gave them nothing to look at)
+    const a = i / NMESA * Math.PI * 2 + rand(-0.15, 0.15), d = rand(2600, 4300), x = Math.cos(a) * d, z = Math.sin(a) * d, r = rand(140, 260);
     const m = buildRock(r, rockMat); m.scale.y *= 0.28; m.rotation.x = 0; m.rotation.z = 0; m.position.set(x, padGroundY(x, z) + r * 0.08, z); scene.add(m);
   }
 
@@ -12733,7 +12738,7 @@ function updateAscentCut(dt) {
   const talking = A.say && t < A.sayEnd;
   const head = talking ? `<span style="color:${A.say.col}">${A.say.who}</span><br><span style="color:#eaf4ff;font-size:0.82em">${A.say.line}</span>` : `<span style="color:${col}">${cap}</span>`;
   const next = head + (t > ASC.RELEASE && !talking ? trimNote : '')
-             + '<br><span style="color:#5a6a7a;font-size:0.6em">[SPACE] skip</span>';
+             + '<br><span style="color:#5a6a7a;font-size:0.6em">' + (TOUCH.on ? 'tap SKIP' : '[SPACE] skip') + '</span>';
   if (next !== A.beat) { A.beat = next; banner.innerHTML = next; }
 
   renderFrame(A.scene, ascActiveCam());
@@ -12743,7 +12748,7 @@ function updateAscentCut(dt) {
     transition('', () => {
       banner.classList.add('hidden');
       disposeScene(A.scene); A.scene = null; A.camera = null; A.debris = []; A.loose = [];
-      initEvaCut();                 // orbit reached; now somebody has to come and get you
+      lateGate(initEvaCut)();       // orbit reached; now somebody has to come and get you
     });
   }
 }
@@ -13279,7 +13284,7 @@ function updateEvaCut(dt) {
   if (t >= EVA_T.TETHER && !E.clipped) { E.clipped = true; Sound.clunk(); Sound.chime(); addScore(1200, 'RENDEZVOUS'); }
 
   drawEvaVisor();
-  const bn = E.cap + '<br><span style="color:#5a6a7a;font-size:0.6em">[SPACE] skip</span>';
+  const bn = E.cap + '<br><span style="color:#5a6a7a;font-size:0.6em">' + (TOUCH.on ? 'tap SKIP' : '[SPACE] skip') + '</span>';
   if (bn !== E.beat) { E.beat = bn; banner.innerHTML = bn; }
 
   renderFrame(E.scene, cam);
@@ -14098,8 +14103,9 @@ function registerMiss(x, y, d) {
   for (let i = 0; i < 12; i++) R.vents.push({ x: x + rand(-6, 6), y: y + rand(-4, 4), vx: rand(-90, 90), vy: rand(-140, -40), r: rand(5, 10), life: rand(0.6, 1.1), max: 1.1 });   // a gout of air
 }
 
-rcv.addEventListener('mousedown', (e) => {
+rcv.addEventListener('pointerdown', (e) => {   // pointer, not mouse: a finger's tap lands at once, without the compatibility mouse events' delay
   if (state !== 'repair') return;
+  e.preventDefault();
   const cx = e.clientX, cy = e.clientY, R = REPAIR;
   // hit the closest dot whose click zone we're inside
   let hit = -1, best = 1e9;
@@ -14272,13 +14278,14 @@ function showComms() {
   transition('COMMS RESTORED · PRESS V FOR HOUSTON');
 }
 
-rcv.addEventListener('mousedown', (e) => {
+rcv.addEventListener('pointerdown', (e) => {   // pointer events: a finger drags a wire the same as the mouse (the canvas is touch-action: none)
   if (state !== 'wiretask' || WIRE.done) return;
+  e.preventDefault();
   const mx = e.clientX, my = e.clientY;
-  for (const n of WIRE.left) { if (!n.conn && Math.hypot(n.x - mx, n.y - my) < 32) { WIRE.drag = { color: n.color, sx: n.x, sy: n.y, x: mx, y: my, node: n }; break; } }
+  for (const n of WIRE.left) { if (!n.conn && Math.hypot(n.x - mx, n.y - my) < 32) { WIRE.drag = { color: n.color, sx: n.x, sy: n.y, x: mx, y: my, node: n }; try { rcv.setPointerCapture(e.pointerId); } catch (x) {} break; } }
 });
-rcv.addEventListener('mousemove', (e) => { if (state === 'wiretask' && WIRE.drag) { WIRE.drag.x = e.clientX; WIRE.drag.y = e.clientY; } });
-rcv.addEventListener('mouseup', (e) => {
+rcv.addEventListener('pointermove', (e) => { if (state === 'wiretask' && WIRE.drag) { WIRE.drag.x = e.clientX; WIRE.drag.y = e.clientY; } });
+const wireUp = (e) => {
   if (state !== 'wiretask' || !WIRE.drag) return;
   const mx = e.clientX, my = e.clientY;
   for (const n of WIRE.right) {
@@ -14289,7 +14296,8 @@ rcv.addEventListener('mouseup', (e) => {
     }
   }
   WIRE.drag = null;
-});
+};
+rcv.addEventListener('pointerup', wireUp); rcv.addEventListener('pointercancel', wireUp);
 
 /* ===================== WATER RECIPE (colours) — mixed physically in the pot ===================== */
 const MIX = {
@@ -14361,7 +14369,7 @@ function updateHUD() {
     document.getElementById('hudLine1').innerHTML = hudChips([['SEALED', R.sealed + '/' + R.needed, R.sealed >= R.needed ? 'ok' : '']]);
     const mc = R.misses < R.maxMiss*0.5 ? '#8fd8ff' : R.misses < R.maxMiss*0.8 ? '#ffd24a' : '#ff5030';
     document.getElementById('hudLine2').innerHTML = hudChips([['MISSED', R.misses + '/' + R.maxMiss, R.misses >= R.maxMiss * 0.8 ? 'no' : 'dim']]);
-    document.getElementById('hudLine3').innerHTML = hudKeys('Click a tear the moment its ring meets the cyan reticle');
+    document.getElementById('hudLine3').innerHTML = hudKeys((TOUCH.on ? 'Tap' : 'Click') + ' a tear the moment its ring meets the cyan reticle');
     banner.innerHTML = 'TIME YOUR CLICKS<br>seal every tear';
   } else if (state === 'walk') {
     const oc = WALK.o2flash > 0 ? '#eaffe8' : WALK.o2 > 40 ? '#8fd8ff' : WALK.o2 > 20 ? '#ffd24a' : '#ff5030';
@@ -14372,7 +14380,7 @@ function updateHUD() {
     document.getElementById('hudLine1').innerHTML = hudMeter('OXYGEN', WALK.o2, oc, move.replace(' · ', ' '));
     const d = Math.round(Math.hypot(P.x - WALK.baseXZ.x, P.z - WALK.baseXZ.y));
     document.getElementById('hudLine2').innerHTML = hudChips([['TO GOAL', d + ' m', 'dim']]);
-    document.getElementById('hudLine3').innerHTML = hudKeys('WASD move · Shift sprint · Space jump, twice to double · Ctrl slide');
+    document.getElementById('hudLine3').innerHTML = hudKeys(TOUCH.on ? 'Left stick moves · drag the right side to look · JUMP, twice to double · SPRINT · SLIDE' : 'WASD move · Shift sprint · Space jump, twice to double · Ctrl slide');
     banner.innerHTML = WALK.fellFlash > 0
       ? '<span style="color:#ff5030">FELL INTO THE CHASM</span><br>back to the start — cross the platforms'
       : 'CROSS THE CHASM TO THE AIRLOCK<br>the parkour is the only way over';
@@ -14584,7 +14592,7 @@ function currentObjective() {
   else if (state === 'wiretask') { o.text = 'Rewire the rover: connect each wire to its matching colour.'; }
   else if (state === 'space') { o.text = SPACE.leg === 'back' ? 'Fly the asteroid field back to the station and bring Mark home.' : 'Fly the asteroid field out to Mars. Shoot or dodge the rocks.'; o.note = 'Progress ' + Math.round((SPACE.prog || 0) * 100) + '% · Hull ' + Math.round(SPACE.hull || 0) + '%'; }
   else if (state === 'strip') { o.text = 'Strip the ship to make orbit. Look at a part and press E to throw it out; press F to launch once the readout says READY.'; }
-  else if (state === 'launchcut' || state === 'eva' || state === 'finale') { o.text = 'Cutscene. Press Space to skip.'; }
+  else if (state === 'launchcut' || state === 'eva' || state === 'finale') { o.text = TOUCH.on ? 'Cutscene. Tap SKIP to skip it.' : 'Cutscene. Press Space to skip.'; }
   else return null;
   return o;
 }
@@ -14679,8 +14687,9 @@ function pauseBuild() {
     <div class="v vs"><div class="k">Settings</div>
       <div class="row"><span>Volume</span><input type="range" id="sVol" min="0" max="100" step="1"><b id="sVolV"></b></div>
       <div class="row"><span>Music</span><input type="range" id="sMus" min="0" max="100" step="1"><b id="sMusV"></b></div>
-      <div class="row"><span>Mouse sensitivity</span><input type="range" id="sSens" min="20" max="300" step="5"><b id="sSensV"></b></div>
-      <div class="row"><span>Invert mouse Y</span><div><button class="tog" id="sInv"></button></div><b></b></div>
+      <div class="row"><span>Look sensitivity</span><input type="range" id="sSens" min="20" max="300" step="5"><b id="sSensV"></b></div>
+      <div class="row"><span>Invert look Y</span><div><button class="tog" id="sInv"></button></div><b></b></div>
+      <div class="row"><span>Touch controls</span><div class="seg" id="sTouch"><button data-t="auto">AUTO</button><button data-t="on">ON</button><button data-t="off">OFF</button></div><b></b></div>
       <div class="row"><span>Graphics</span><div class="seg" id="sQual"><button data-q="high">HIGH</button><button data-q="balanced">BALANCED</button><button data-q="low">LOW</button></div><b></b></div>
       <div class="k2">Controls<i>click one, then press the new key · Esc cancels</i></div>
       <div class="binds" id="sBinds"></div><div class="note" id="sNote"></div>
@@ -14700,6 +14709,7 @@ function pauseBuild() {
   $('sSens').onchange = saveSettings;
   $('sInv').onclick = () => { SET.invertY = !SET.invertY; saveSettings(); settingsSync(); };
   for (const b of el.querySelectorAll('#sQual button')) b.onclick = () => { setQuality(b.dataset.q); settingsSync(); $('sNote').textContent = 'Shadow detail changes from the next scene you load.'; };
+  for (const b of el.querySelectorAll('#sTouch button')) b.onclick = () => { SET.touch = b.dataset.t; saveSettings(); settingsSync(); $('sNote').textContent = b.dataset.t === 'auto' ? 'On-screen controls on a phone or tablet, and from the first touch of the game elsewhere.' : b.dataset.t === 'on' ? 'The on-screen stick and buttons stay up.' : 'Keyboard and mouse only.'; };
   $('sReset').onclick = () => { SET.keys = {}; PAUSE.rebind = null; saveSettings(); buildKeyMap(); keyHintsRefresh(); settingsSync(); $('sNote').textContent = 'Controls reset to the defaults.'; };
   $('sBack').onclick = () => { if (PAUSE.from === 'menu') settingsClose(); else pauseView('main'); };
   return el;
@@ -14711,6 +14721,7 @@ function settingsSync() {
   $('sSens').value = Math.round(SET.sens * 100); $('sSensV').textContent = SET.sens.toFixed(2) + '×';
   $('sInv').textContent = SET.invertY ? 'ON' : 'OFF'; $('sInv').classList.toggle('on', SET.invertY);
   for (const b of PAUSE.el.querySelectorAll('#sQual button')) b.classList.toggle('on', b.dataset.q === QUALITY);
+  for (const b of PAUSE.el.querySelectorAll('#sTouch button')) b.classList.toggle('on', b.dataset.t === (SET.touch || 'auto'));
   $('sBinds').innerHTML = BINDS.map(([id, name, def]) => `<button data-id="${id}" class="${PAUSE.rebind === id ? 'wait' : bindOf(id) !== def ? 'moved' : ''}"><span>${name}</span><kbd>${PAUSE.rebind === id ? 'PRESS…' : keyLabel(bindOf(id))}</kbd></button>`).join('');
   for (const b of PAUSE.el.querySelectorAll('#sBinds button')) b.onclick = () => { PAUSE.rebind = b.dataset.id; $('sNote').textContent = ''; settingsSync(); };
 }
@@ -14756,7 +14767,7 @@ function pauseSet(on, quiet) {
     PAUSE.el.classList.remove('on');
     if (SFX.ctx && SFX.ctx.state === 'suspended') SFX.ctx.resume().then(() => { if (AMB.pending && AMB.kind !== AMB.pending) ambience(AMB.pending); }).catch(() => {});
     last = performance.now();
-    if (!quiet && fpvOwner()) { try { const p = document.getElementById('three').requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+    if (!quiet && fpvOwner() && !TOUCH.on) { try { const p = document.getElementById('three').requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
   }
 }
 // the title screen's SETTINGS: the same panel, over the menu, which keeps running behind it
@@ -14780,6 +14791,189 @@ function perfWatch(raw) {
   if (PERF.t >= 8) { const fps = PERF.n / PERF.t; PERF.t = PERF.n = 0; if (fps < 26) { PERF.warned = true; suitPopup('LOW FRAME RATE', 'Esc → Settings → Graphics: try ' + (QUALITY === 'high' ? 'BALANCED' : 'LOW')); } }
 }
 
+/* ===================== TOUCH CONTROLS =====================
+   Phones and tablets play with their thumbs. The left part of the screen is a floating stick (it appears where the thumb
+   lands), the right part is a look pad, the phase's few buttons sit at the bottom right and PAUSE / OBJECTIVE pills at
+   the bottom middle. No phase changed for it: the stick and the buttons are a virtual keyboard. The stick writes the WASD
+   entries of `keys` itself (eight directions, a dead zone in the middle, and the rim sprints on foot); a button sends a
+   real keydown/keyup for its key, so the polled phases and the one-shot listeners (V, Space to skip, the vending machine)
+   see what a keyboard would send. The look pad turns whichever phase owns the first-person camera (fpvOwner), as the
+   mouse-look handler does under pointer lock; in the asteroid run a tap on it fires; while a quick-time prompt is up, a
+   tap anywhere is the press. The prompts keep the game's own words ("[E] Open the locker"): the buttons wear the letters.
+   On for a touch-only device (TOUCH_ONLY) and from the first touch of the game on any other screen, off again at the
+   first real movement key; the settings panel forces it either way (SET.touch). The first tap in a phase asks a phone for
+   fullscreen and a landscape lock where the browser allows them. */
+const TOUCH = { on: false, seen: false, el: null, stick: null, look: null, held: {}, latch: {}, rim: false, key: '', fs: false, btn: [], tipped: false };
+const TOUCH_STICK_R = 52, TOUCH_LOOK_K = 0.0042;
+const TOUCH_NAMES = { forward: 'STICK ↑', back: 'STICK ↓', left: 'STICK ←', right: 'STICK →', sprint: 'SPRINT', slide: 'SLIDE', use: 'E', drop: 'Q', act: 'F', switch: 'V', obj: 'OBJECTIVE' };
+function touchWanted() { const m = SET.touch || 'auto'; return m === 'on' || (m === 'auto' && (TOUCH_ONLY || TOUCH.seen)); }
+// the buttons of each phase: [key code, face, small word, 'big' | 'latch'] — a latch stays on until tapped again
+function touchSet() {
+  const comms = commsUnlocked;
+  switch (state) {
+    case 'descent':  return { mv: 1, b: [['Space', 'THRUST', 'hold', 'big']] };
+    case 'walk':     return { mv: 1, lk: 1, b: [['Space', 'JUMP', '', 'big'], ['ShiftLeft', 'SPRINT', '', 'latch'], ['ControlLeft', 'SLIDE', '']] };
+    case 'base':     return { mv: 1, lk: 1, b: [['KeyE', 'E', 'use', 'big'], ['Space', 'JUMP', ''], ['KeyQ', 'Q', 'set down'], ['KeyF', 'F', 'rover'], comms && ['KeyV', 'V', 'houston']] };
+    case 'driving':  return { mv: 1, b: [['ShiftLeft', 'NITRO', 'hold', 'big'], ['KeyF', 'F', 'get out']] };
+    case 'houston':  return { mv: 1, lk: 1, b: [['KeyE', 'E', 'use', 'big'], ['Space', 'JUMP', ''], comms && ['KeyV', 'V', 'mark']] };
+    case 'maintain': return { mv: 1, lk: 1, b: [['KeyE', 'E', 'hold: fix', 'big'], ['ShiftLeft', 'SPRINT', '', 'latch']] };
+    case 'strip':    return { lk: 1, b: [['KeyE', 'E', 'throw out', 'big'], ['KeyF', 'F', 'launch']] };
+    case 'space':    return { mv: 1, lk: 1, b: [['Space', 'FIRE', 'or tap', 'big']] };
+    case 'launchcut': case 'eva': case 'finale': return { all: 1, b: QTE.cur ? [] : [['Space', 'SKIP', 'cutscene']] };
+    case 'repair': case 'wiretask': return { b: [] };   // the canvas takes the taps itself; only the pills
+    default: return null;
+  }
+}
+function touchBuild() {
+  if (TOUCH.el) return TOUCH.el;
+  const R = TOUCH_STICK_R, st = document.createElement('style');
+  st.textContent = `#touch{position:fixed;inset:0;z-index:9;display:none;pointer-events:none;font-family:var(--mono);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+    #touch.on{display:block}
+    body.touchctl #lockHint{display:none!important}
+    body.touchctl canvas#three{cursor:default}
+    body.touchctl #tutBox:not(.desc){bottom:58px} body.touchctl #tutBox{z-index:8}   /* under the stick, which lands where the thumb does */
+    #touch.desc .sys{top:calc(8px + env(safe-area-inset-top));bottom:auto}
+    #touch.desc .s0{bottom:calc(74px + env(safe-area-inset-bottom))}
+    #touch .tz{position:absolute;top:0;bottom:0;pointer-events:none;touch-action:none}
+    #touch .tz.live{pointer-events:auto}
+    #touch .tz.mv{left:0;width:44%} #touch .tz.lk{right:0;width:56%} #touch .tz.lk.all{width:100%}
+    #touch .stick{position:absolute;width:${R * 2 + 20}px;height:${R * 2 + 20}px;margin:-${R + 10}px 0 0 -${R + 10}px;border-radius:50%;border:2px solid rgba(255,255,255,.22);background:rgba(10,8,6,.3);display:none;pointer-events:none}
+    #touch .stick i{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;background:rgba(255,210,74,.82);box-shadow:0 2px 12px rgba(0,0,0,.5)}
+    #touch .stick.on{display:block}
+    #touch .tb{position:absolute;width:64px;height:64px;border-radius:50%;pointer-events:auto;touch-action:none;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(12,10,8,.55);border:2px solid rgba(255,210,74,.55);color:#ffd24a;box-shadow:0 4px 14px rgba(0,0,0,.4);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);transition:transform .06s}
+    #touch .tb.on{display:flex}
+    #touch .tb b{font:700 24px var(--mono);line-height:1;letter-spacing:1px}
+    #touch .tb.w b{font-size:11px;letter-spacing:1.5px}
+    #touch .tb i{font:600 8px var(--mono);font-style:normal;letter-spacing:1.5px;text-transform:uppercase;color:#fff3d6;margin-top:3px;opacity:.85;white-space:nowrap}
+    #touch .tb i:empty{display:none}
+    #touch .tb.big{width:86px;height:86px} #touch .tb.big b{font-size:34px} #touch .tb.big.w b{font-size:15px;letter-spacing:2px}
+    #touch .tb.down,#touch .tb.lit{background:rgba(255,210,74,.92);color:#1a0d06} #touch .tb.down i,#touch .tb.lit i{color:#1a0d06} #touch .tb.down{transform:scale(.93)} #touch .tb.lit{border-color:#fff}
+    #touch .s0{right:calc(22px + env(safe-area-inset-right));bottom:calc(26px + env(safe-area-inset-bottom))}
+    #touch .s1{right:calc(118px + env(safe-area-inset-right));bottom:calc(14px + env(safe-area-inset-bottom))}
+    #touch .s2{right:calc(106px + env(safe-area-inset-right));bottom:calc(92px + env(safe-area-inset-bottom))}
+    #touch .s3{right:calc(26px + env(safe-area-inset-right));bottom:calc(124px + env(safe-area-inset-bottom))}
+    #touch .s4{right:calc(190px + env(safe-area-inset-right));bottom:calc(40px + env(safe-area-inset-bottom))}
+    #touch .sys{position:absolute;bottom:calc(10px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:none;gap:8px;pointer-events:none}
+    #touch .sys.on{display:flex}
+    #touch .sys button{pointer-events:auto;touch-action:none;font:600 10px var(--mono);letter-spacing:2px;color:#e8dcc8;background:rgba(12,10,8,.55);border:1px solid rgba(255,255,255,.22);border-radius:16px;padding:9px 13px;min-height:34px;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);cursor:pointer}
+    #touch .sys button.lit{background:rgba(255,138,60,.85);color:#1a0d06}
+    @media (max-width:520px){#touch .s4{right:calc(26px + env(safe-area-inset-right));bottom:calc(222px + env(safe-area-inset-bottom))}}   /* upright: the fifth button stacks above the fourth, clear of the pills (after the slot rules, so it wins) */
+    @media (prefers-reduced-motion:reduce){#touch .tb{transition:none}}`;
+  document.head.appendChild(st);
+  const el = document.createElement('div'); el.id = 'touch';
+  el.innerHTML = '<div class="tz mv"><div class="stick"><i></i></div></div><div class="tz lk"></div>'
+    + [0, 1, 2, 3, 4].map(i => `<div class="tb s${i}" role="button"><b></b><i></i></div>`).join('')
+    + '<div class="sys"><button data-sys="pause">❚❚ PAUSE</button><button data-sys="obj">☰ OBJECTIVE</button></div>';
+  document.body.appendChild(el); TOUCH.el = el;
+  const mv = TOUCH.mv = el.querySelector('.tz.mv'), lk = TOUCH.lk = el.querySelector('.tz.lk');
+  TOUCH.stickEl = el.querySelector('.stick'); TOUCH.knob = TOUCH.stickEl.firstChild; TOUCH.btn = [...el.querySelectorAll('.tb')]; TOUCH.sysEl = el.querySelector('.sys');
+  // the stick: it appears under the thumb and the knob follows it out to the rim
+  mv.addEventListener('pointerdown', e => {
+    e.preventDefault(); touchGesture();
+    if (QTE.cur && !QTE.dead) { qteHit(); return; }
+    if (TOUCH.stick) return;
+    TOUCH.stick = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    try { mv.setPointerCapture(e.pointerId); } catch (x) {}
+    const r = mv.getBoundingClientRect();
+    TOUCH.stickEl.style.left = (e.clientX - r.left) + 'px'; TOUCH.stickEl.style.top = (e.clientY - r.top) + 'px'; TOUCH.knob.style.transform = ''; TOUCH.stickEl.classList.add('on');
+    touchStick(0, 0);
+  });
+  mv.addEventListener('pointermove', e => { const s = TOUCH.stick; if (!s || e.pointerId !== s.id) return; touchStick(e.clientX - s.x, e.clientY - s.y); });
+  const mvUp = e => { const s = TOUCH.stick; if (!s || e.pointerId !== s.id) return; touchStickDrop(); };
+  mv.addEventListener('pointerup', mvUp); mv.addEventListener('pointercancel', mvUp); mv.addEventListener('lostpointercapture', mvUp);
+  // the look pad: drag turns, a tap fires in the asteroid run
+  lk.addEventListener('pointerdown', e => {
+    e.preventDefault(); touchGesture();
+    if (QTE.cur && !QTE.dead) { qteHit(); return; }
+    if (TOUCH.look) return;
+    TOUCH.look = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 };
+    try { lk.setPointerCapture(e.pointerId); } catch (x) {}
+  });
+  lk.addEventListener('pointermove', e => {
+    const L = TOUCH.look; if (!L || e.pointerId !== L.id) return;
+    const dx = e.clientX - L.x, dy = e.clientY - L.y; L.x = e.clientX; L.y = e.clientY; L.moved += Math.abs(dx) + Math.abs(dy);
+    const C = fpvOwner(); if (!C || PAUSE.on) return;
+    const k = TOUCH_LOOK_K * SET.sens;
+    C.yaw -= dx * k; C.pitch = Math.max(-1.2, Math.min(1.2, C.pitch - dy * k * (SET.invertY ? -1 : 1)));
+  });
+  const lkUp = e => { const L = TOUCH.look; if (!L || e.pointerId !== L.id) return; TOUCH.look = null; if (L.moved < 12 && performance.now() - L.t < 350 && state === 'space') SPACE.fireQueued = true; };
+  lk.addEventListener('pointerup', lkUp); lk.addEventListener('pointercancel', lkUp); lk.addEventListener('lostpointercapture', lkUp);
+  // the buttons: held while the thumb is on them, a latch toggles
+  for (const b of TOUCH.btn) {
+    b.addEventListener('pointerdown', e => {
+      e.preventDefault(); touchGesture(); const d = b._d; if (!d) return;
+      try { b.setPointerCapture(e.pointerId); } catch (x) {}
+      if (d.latch) { TOUCH.latch[d.code] = !TOUCH.latch[d.code]; b.classList.toggle('lit', !!TOUCH.latch[d.code]); touchSprint(); try { Sound.click(); } catch (x) {} return; }
+      b.classList.add('down'); touchKey(d.code, true);
+    });
+    const up = () => { const d = b._d; b.classList.remove('down'); if (d && !d.latch) touchKey(d.code, false); };
+    b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
+  }
+  TOUCH.sysEl.addEventListener('pointerdown', e => {
+    const b = e.target.closest('button'); if (!b) return; e.preventDefault(); touchGesture();
+    if (b.dataset.sys === 'pause') { if (PAUSE.on) pauseSet(false); else if (canPause()) pauseSet(true); }
+    else objShow(!OBJ.on);
+  });
+  return el;
+}
+function touchStick(dx, dy) {
+  const R = TOUCH_STICK_R, r = Math.hypot(dx, dy), k = r > R ? R / r : 1; dx *= k; dy *= k;
+  TOUCH.knob.style.transform = `translate(${dx.toFixed(1)}px,${dy.toFixed(1)}px)`;
+  const n = Math.min(1, r / R), a = n > 0.22 ? Math.atan2(-dy, dx) * 180 / Math.PI : null;   // the angle, up = 90; eight 45° sectors
+  keys.KeyW = a !== null && a > 22.5 && a < 157.5; keys.KeyS = a !== null && a < -22.5 && a > -157.5;
+  keys.KeyD = a !== null && Math.abs(a) < 67.5; keys.KeyA = a !== null && Math.abs(a) > 112.5;
+  TOUCH.rim = n > 0.94; touchSprint();
+}
+function touchStickDrop() { TOUCH.stick = null; if (TOUCH.stickEl) TOUCH.stickEl.classList.remove('on'); keys.KeyW = keys.KeyA = keys.KeyS = keys.KeyD = false; TOUCH.rim = false; touchSprint(); }
+// on foot the sprint is the latch or the stick at its rim; elsewhere Shift belongs to a held button (the rover's nitro)
+function touchSprint() { if (TOUCH.on && (state === 'walk' || state === 'maintain')) keys.ShiftLeft = !!(TOUCH.latch.ShiftLeft || TOUCH.rim); }
+function touchKey(code, down) {
+  if (!!TOUCH.held[code] === !!down) return; TOUCH.held[code] = !!down;
+  const key = code === 'Space' ? ' ' : /^Key\w$/.test(code) ? code.slice(3).toLowerCase() : code;
+  const ev = new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key, bubbles: true, cancelable: true }); ev._rd = true;   // _rd: past the rebinding door, as the game's own re-sent keys go
+  document.dispatchEvent(ev); keys[code] = !!down;
+}
+function touchRelease(all) {
+  for (const c in TOUCH.held) if (TOUCH.held[c]) touchKey(c, false);
+  if (TOUCH.latch.ShiftLeft || TOUCH.rim) keys.ShiftLeft = false;
+  TOUCH.latch = {}; TOUCH.rim = false;
+  for (const b of TOUCH.btn) b.classList.remove('down', 'lit');
+  if (all) { if (TOUCH.stick) touchStickDrop(); TOUCH.look = null; }
+}
+// a phone's first tap in a phase: the whole screen, held sideways, where the browser allows it
+function touchGesture() {
+  if (TOUCH.fs || !TOUCH_ONLY) return; TOUCH.fs = true;
+  const d = document.documentElement, rf = d.requestFullscreen || d.webkitRequestFullscreen; if (!rf) return;
+  try { const p = rf.call(d, { navigationUI: 'hide' }); if (p && p.then) p.then(() => { try { const l = screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape'); if (l && l.catch) l.catch(() => {}); } catch (e) {} }).catch(() => {}); } catch (e) {}
+}
+// once a frame from the loop: the layer follows the phase, and the buttons the phase's set
+function touchTick() {
+  const want = touchWanted() && document.body.classList.contains('playing');
+  if (want !== TOUCH.on) { TOUCH.on = want; document.body.classList.toggle('touchctl', want); if (!want && TOUCH.el) touchRelease(true); }
+  const set = TOUCH.on ? touchSet() : null;
+  const key = set ? state + '|' + set.b.filter(Boolean).map(b => b[0] + b[1]).join(',') + '|' + !!set.mv + !!set.lk + !!set.all : '';
+  if (key !== TOUCH.key) {
+    TOUCH.key = key;
+    if (!set) { if (TOUCH.el) { touchRelease(true); TOUCH.el.classList.remove('on'); } return; }
+    touchBuild(); touchRelease(false); TOUCH.el.classList.add('on');
+    const lk = !!(set.lk || set.all);
+    TOUCH.mv.classList.toggle('live', !!set.mv); TOUCH.lk.classList.toggle('live', lk); TOUCH.lk.classList.toggle('all', !!set.all || (lk && !set.mv));
+    if (!set.mv && TOUCH.stick) touchStickDrop(); if (!lk) TOUCH.look = null;
+    const bs = set.b.filter(Boolean);
+    TOUCH.btn.forEach((b, i) => {
+      const d = bs[i]; b._d = d ? { code: d[0], latch: d[3] === 'latch' } : null;
+      b.classList.toggle('on', !!d); b.classList.toggle('big', !!d && d[3] === 'big'); b.classList.toggle('w', !!d && d[1].length > 1);
+      if (d) { b.firstChild.textContent = d[1]; b.lastChild.textContent = d[2] || ''; }
+    });
+    TOUCH.sysEl.classList.toggle('on', PAUSABLE.has(state)); TOUCH.el.classList.toggle('desc', state === 'descent');   // the descent's pills go to the top, clear of the cockpit's readouts
+    if (!TOUCH.tipped && PAUSABLE.has(state) && innerHeight > innerWidth * 1.1) { TOUCH.tipped = true; suitPopup('TURN YOUR PHONE SIDEWAYS', 'the game is made for landscape'); }
+  }
+  if (TOUCH.on && TOUCH.el) { const o = TOUCH.sysEl.lastElementChild, lit = !!OBJ.on; if (o.classList.contains('lit') !== lit) o.classList.toggle('lit', lit); }
+}
+// a touch on the game turns the layer on wherever it is not already (a laptop's touchscreen, a tablet with a trackpad); a real movement key turns it off again
+addEventListener('pointerdown', e => { if (e.pointerType === 'touch' && !TOUCH.seen && document.body.classList.contains('playing') && state !== 'site') TOUCH.seen = true; }, true);
+addEventListener('keydown', e => { if (TOUCH.seen && !e._rd && !TOUCH_ONLY && /^(Key[WASD]|Arrow|Space)/.test(e.code)) TOUCH.seen = false; }, true);
+
 /* ===================== MAIN LOOP ===================== */
 let last = performance.now();
 /* ---- the tutorial ----
@@ -14790,8 +14984,9 @@ let last = performance.now();
    does not repeat its card, but a crashed landing is coached again. The keys shown are the player's own (bindOf), and
    Tab still brings up the goal any time (objShow). */
 const TUT = { el: null, seen: null, last: null, step: -1, stepT: 0, held: 0, padT: 0, card: null, cardT: 0 };
-const tutK = id => keyLabel(bindOf(id));
-const tutMove = () => ['forward', 'left', 'back', 'right'].map(tutK);
+// on the touch layer the coaching names the stick and the buttons instead of the keys
+const tutK = id => TOUCH.on ? (id === 'jump' ? (state === 'descent' ? 'THRUST' : state === 'space' ? 'FIRE' : 'JUMP') : TOUCH_NAMES[id] || keyLabel(bindOf(id))) : keyLabel(bindOf(id));
+const tutMove = () => TOUCH.on ? ['LEFT STICK'] : ['forward', 'left', 'back', 'right'].map(tutK);
 const TUT_STEPS = [
   () => [[tutK('jump')], `Hold <b>${tutK('jump')}</b> to fire your thrusters and slow your fall.`],
   () => [tutMove(), `Steer with <b>${tutMove().join(' ')}</b> and fly over the <b style="color:#3fd06a">green landing pad</b>.`],
@@ -14836,7 +15031,7 @@ function tutBuild() {
   document.head.appendChild(st);
   TUT.el = document.createElement('div'); TUT.el.id = 'tutBox'; TUT.el.setAttribute('role', 'status'); document.body.appendChild(TUT.el);
 }
-function tutShow(html) { tutBuild(); if (TUT.el._h !== html) { TUT.el._h = html; TUT.el.innerHTML = html; } TUT.el.classList.add('on'); }
+function tutShow(html) { tutBuild(); if (TOUCH.on) html = html.replace(/\bMOUSE\b/g, 'DRAG RIGHT').replace(/\bCLICK\b/g, 'TAP').replace(/\bclick\b/g, 'tap').replace(/\blook around\b/, 'drag the right side to look'); if (TUT.el._h !== html) { TUT.el._h = html; TUT.el.innerHTML = html; } TUT.el.classList.add('on'); }
 function tutHide() { if (TUT.el) TUT.el.classList.remove('on'); }
 const tutKeys = ks => '<div class="keys">' + ks.map(k => '<kbd>' + k + '</kbd>').join('') + '</div>';
 function tutCard(S) {
@@ -14873,6 +15068,7 @@ function tutTick(dt) {
 
 function loop(now) {
   const raw = (now - last) / 1000, dt = Math.min(0.05, raw); last = now;
+  try { touchTick(); } catch (e) {}   // the touch layer follows the phase (an overlay: a fault in it must never stop the game)
   if (PAUSE.on) { try { tutTick(0); } catch (e) {} requestAnimationFrame(loop); return; }                  // frozen: the last frame stays on screen behind the pause card
   perfWatch(raw);
   // the title diorama is a real scene holding a hab, a rover and a terrain mesh; drop it the moment
@@ -15284,7 +15480,7 @@ function updateSpace(dt) {
 }
 
 function showPickup() {
-  transition('TOUCHDOWN · REACH THE SHIP ON FOOT', startRescueParkour);
+  transition('TOUCHDOWN · REACH THE SHIP ON FOOT', lateGate(startRescueParkour));
 }
 
 function startRescueParkour() {
@@ -15297,14 +15493,14 @@ function startRescueParkour() {
    off Mars — happened in a fade. Play the launch. */
 // aboard, but she is too heavy: strip her out before the ascent will close
 function showReturnLaunch() {
-  transition('ABOARD · SHE IS TOO HEAVY TO MAKE ORBIT', () => initStripDown());
+  transition('ABOARD · SHE IS TOO HEAVY TO MAKE ORBIT', lateGate(() => initStripDown()));
 }
 
 function showRescueWin() {
   hud.classList.add('hidden'); banner.classList.add('hidden');
   FINALE.hull = Math.round(SPACE.hull);
   state = 'finaleWait';
-  transition('', initFinale);
+  transition('', lateGate(initFinale));
 }
 
 /* ===== THE ENDING — aboard the station, the five of them waiting at the hatch, then THE END =====
@@ -16079,7 +16275,7 @@ function showMainMenu() {
     <div class="titleBrand"><img class="tPatch" src="mars-crash-logo.png" alt="" onerror="this.remove()"><div><h1>RED DUST</h1><h2>Crash Landing on Mars</h2></div></div>
     <div>
       <button id="startBtn" class="textBtn playText"><span class="tri">&#9654;</span>PLAY</button>
-      <div class="touchMsg">Keyboard and mouse needed &mdash; Red Dust has no touch controls yet.</div>
+      <div class="touchMsg">Touch controls: left thumb moves, right thumb looks. Hold your phone sideways.</div>
       ${(() => { const n = (typeof ACH !== 'undefined') ? ACHS.filter(a => ACH.got[a[0]]).length : 0, tot = (typeof ACHS !== 'undefined') ? ACHS.length : 0;
         return `<div style="display:flex;gap:10px;justify-content:center;margin:14px 0 6px;font-family:var(--mono)">
           <span style="padding:6px 12px;border:1px solid rgba(255,210,74,.35);border-radius:6px;background:rgba(0,0,0,.35);font-size:12px;letter-spacing:2px;color:#c8b8a4">BEST <b style="color:#ffd24a;font-size:15px">${BEST_SCORE}</b></span>
@@ -16090,7 +16286,7 @@ function showMainMenu() {
   // volume, mouse, graphics and the key bindings: the pause menu's settings panel, over the title
   document.getElementById('qualBtn').onclick = openSettings;
   // a new game teaches as it goes: the coached landing, then each phase's card (tutReset)
-  document.getElementById('startBtn').onclick = () => { tutReset(); msg.classList.add('hidden'); titleChrome(false); initDescent(); };
+  document.getElementById('startBtn').onclick = () => { if (TOUCH.on) touchGesture(); tutReset(); msg.classList.add('hidden'); titleChrome(false); initDescent(); };   // the PLAY tap is a phone's chance at fullscreen
   // back to the website. In a game tab that means closing it, which lands you on the site's tab behind it;
   // a tab the browser will not close (opened by hand, not by the site) shows the site here instead.
   document.getElementById('siteBtn').onclick = () => {
@@ -16117,15 +16313,16 @@ function showLevelSelect() {
     ['② Surface crossing — parkour',     () => { msg.classList.add('hidden'); initWalk3D(false, 100); }],
     ['③ The farm — establish the base',  () => { msg.classList.add('hidden'); ensureRenderer(); initBase(); }],
     ['④ Rover run — race to comms',      () => { msg.classList.add('hidden'); ensureRenderer(); initBase(); BASE.rover.repaired = true; if (BASE.track) BASE.track.active = true; BASE.x = 3; BASE.z = 28; }],
-    ['⑤ Houston — mission control',      () => { msg.classList.add('hidden'); prepStudio(); switchCharacter(); }],
-    ['⑥ Administrator appeal',           () => { prepStudio(); showAdminAppeal(); }],
-    ['⑦ Flight prep — build the 2nd rocket', () => { prepStudio(); initMaintain(); }],
+    // from Houston on the phases use the second set of models (lateGate waits for it if it is still coming in)
+    ['⑤ Houston — mission control',      lateGate(() => { msg.classList.add('hidden'); prepStudio(); switchCharacter(); })],
+    ['⑥ Administrator appeal',           lateGate(() => { prepStudio(); showAdminAppeal(); })],
+    ['⑦ Flight prep — build the 2nd rocket', lateGate(() => { prepStudio(); initMaintain(); })],
     ['⑧ Asteroid run — fly to Mars',     () => { msg.classList.add('hidden'); initSpace(); }],
-    ['⑨ Rescue — cross to the ship',     () => { msg.classList.add('hidden'); startRescueParkour(); }],
+    ['⑨ Rescue — cross to the ship',     lateGate(() => { msg.classList.add('hidden'); startRescueParkour(); })],
     // the ascent builds its own scene from scratch, so it runs standalone and hands off to the return leg
-    ['⑩ Strip the ship — shed mass',     () => { msg.classList.add('hidden'); initStripDown(); }],
-    ['⑪ Launch — lift off from Mars',    () => { msg.classList.add('hidden'); initLaunchCut('ascent'); }],
-    ['⑫ Rendezvous — EVA to the shuttle', () => { msg.classList.add('hidden'); initEvaCut(); }],
+    ['⑩ Strip the ship — shed mass',     lateGate(() => { msg.classList.add('hidden'); initStripDown(); })],
+    ['⑪ Launch — lift off from Mars',    lateGate(() => { msg.classList.add('hidden'); initLaunchCut('ascent'); })],
+    ['⑫ Rendezvous — EVA to the shuttle', lateGate(() => { msg.classList.add('hidden'); initEvaCut(); })],
   ];
   msg.classList.remove('hidden');
   titleChrome(true, false);
@@ -16529,98 +16726,37 @@ const VID_K = 1.3;                                    // 36 cut seconds play as 
 const VID_W = 960, VID_H = 540, VID_BAR = 66;      // 2.35:1 inside 16:9
 
 // ---- plates: nine frames of the game, taken once ----
-function vidBuildPlates() {
-  if (VID.plates) return;
+/* onDone: called when every plate is in. sync: take them all at once (the harness); otherwise one scene per turn of the
+   event loop, so the page keeps responding while the footage comes in (2026-10-09, "optimize for mobile and game": one
+   block used to hold the main thread for a second or two at boot, several on a phone). The cut shows a drawn sky for any
+   plate not in yet, so a trailer started mid-build fills in as it plays. */
+function vidBuildPlates(onDone, sync) {
+  const done = () => { if (onDone) onDone(); };
+  if (VID.plates) { done(); return; }
   // the hero plate is the diorama still kept at load, never the header canvas itself: that canvas now shows the trailer
   const P = { hero: HERO.still || document.getElementById('heroArt') };
-  VID.plates = P; VID.platesEarly = !GAME_READY;   // shot before the game's models landed: taken again when they do (see boot)
+  VID.plates = P; VID.platesEarly = !GAME_LATE_READY;   // shot before the game's models landed: taken again when they do (see boot)
   /* Only ever from the website. The builder borrows the title diorama and tears it down; if the game
      were showing its own menu that would be the LIVE scene. Unreachable through the UI (the trailer is
      hidden while playing) but cheap to make impossible. Fallback skies cover the missing plates. */
-  if (state !== 'site') return;
+  if (state !== 'site') { done(); return; }
   heroPause(); if (MENU3D.scene) menuTeardown();             // the live hero borrows the diorama too; it rebuilds itself after
-  try { ensureRenderer(); } catch (e) { return; }
-  if (!three || !three.renderer) return;
+  try { ensureRenderer(); } catch (e) { done(); return; }
+  if (!three || !three.renderer) { done(); return; }
   const r = three.renderer, W = VID_W, H = VID_H;
   const el = id => document.getElementById(id);
-  /* Everything a scene init touches, saved so it can be put back: the game must be exactly as it was.
-     Audio is the trap — the Play click has just unlocked the context, so ambience() would genuinely
-     start a bed and engineStart() a rocket. Both are swapped for no-ops while this runs. */
+  /* Everything a scene init touches, saved once and put back after EVERY step: between steps the game must be exactly
+     as it was. Audio is the trap — the Play click has just unlocked the context, so ambience() would genuinely
+     start a bed and engineStart() a rocket. Both are swapped for no-ops while a step runs. */
   const saved = {
     state, three: el('three').style.display, hud: hud.classList.contains('hidden'), banner: banner.classList.contains('hidden'),
     msg: msg.classList.contains('hidden'), lock: lockHint.style.display, cock: cockpit.style.display, rcv: rcv.style.display,
     visor: visor.style.display, phase: el('hudPhase').textContent, sfx: SFX.on, rf: renderFrame, amb: ambience, eng: engineStart, add: addScore,
     cp: CHECKPOINT, cpo: CHECKPOINT_OF,
   };
-  SFX.on = false; ambience = function () {}; engineStart = function () {}; addScore = function () {};
-  QTE.off = true;                                             // no quick-time prompt may freeze a plate
   const quiet = function () {};
-  /* Plates are rendered half again larger than the player (1440x810): the header plays the trailer at
-     full page width, and 960px plates blown up to that read as soft. The cut addresses them by
-     fraction, so their size is nobody else's business. */
-  const PW = Math.round(W * 1.5), PH = Math.round(H * 1.5);
-  const still = (scene, cam) => {                            // render ONE frame of a stepped scene into a new plate
-    const c = document.createElement('canvas'); c.width = PW; c.height = PH; const g = c.getContext('2d');
-    r.setSize(PW, PH, false); if (FX && FX.composer) FX.composer.setSize(PW, PH);
-    cam.aspect = W / H; cam.updateProjectionMatrix();
-    renderFrame = saved.rf; renderFrame(scene, cam); renderFrame = quiet;
-    g.drawImage(r.domElement, 0, 0, PW, PH);
-    // five sample points, not one: a single centre pixel on a dark hull read a perfectly good plate as blank
-    let lit = 0;
-    for (const [fx, fy] of [[0.5, 0.5], [0.25, 0.3], [0.75, 0.3], [0.25, 0.75], [0.75, 0.75]]) {
-      const px = g.getImageData(Math.floor(PW * fx), Math.floor(PH * fy), 1, 1).data; if (px[0] + px[1] + px[2] > 6) lit++;
-    }
-    return lit > 0 ? c : null;
-  };
-  try {
-    // the title diorama from two more angles: low on the rover, close on the astronaut
-    initMenuScene();
-    if (MENU3D.scene) {
-      renderFrame = quiet; updateMenu(1 / 60);
-      const cam = MENU3D.camera;
-      /* The rover shot is framed from the rover's own bounds, not a fixed point: the camera that sat at
-         wheel height for the old box rover showed the cargo truck as a wall of tyres. From behind its
-         right shoulder at ground level the whole truck fits, with the hab beyond it and the astronaut
-         standing off to the left — the three new models in one frame. */
-      const rb = new THREE.Box3().setFromObject(MENU3D.rover), rc = rb.getCenter(new THREE.Vector3());
-      cam.position.set(30, menuGroundY(30, -3) + 2.6, -3); cam.lookAt(rc.x, rc.y + 0.2, rc.z); P.low = still(MENU3D.scene, cam);
-      cam.position.set(9.5, menuGroundY(9.5, 14) + 2.3, 14); cam.lookAt(4, 2.1, 10); P.close = still(MENU3D.scene, cam);
-      menuTeardown();
-    }
-    // the asteroid field, five seconds in — a chase camera high off the fighter's left wing, so the ship
-    // fills the frame banking toward Mars (from the game's own seat it was a speck against the stars)
-    initSpace('out'); renderFrame = quiet;
-    for (let i = 0; i < 300; i++) updateSpace(1 / 60);
-    { const sc = SPACE.camera, sp = SPACE.ship ? SPACE.ship.position : new THREE.Vector3(0, 0, -14); sc.position.set(-2.6, 2.2, -6.5); sc.lookAt(sp.x, sp.y - 0.2, sp.z - 4); }
-    P.space = still(SPACE.scene, SPACE.camera);
-    disposeScene(SPACE.scene); SPACE.scene = null;
-    // the strip-down: from just behind the couch, the dashboard under the big forward window (all of it inside the
-    // letterbox and the push-in) and a porthole at the edge
-    initStripDown(); renderFrame = quiet;
-    STRIP.camera.position.set(0.02, 0.02, 0.45); STRIP.camera.quaternion.setFromEuler(new THREE.Euler(0.03, 0.08, 0, 'YXZ'));
-    P.strip = still(STRIP.scene, STRIP.camera);
-    disposeScene(STRIP.scene); STRIP.scene = null; STRIP.camera = null; STRIP.items = []; STRIP.flying = [];
-    // the launch: liftoff, max-Q, MECO
-    LAUNCHCUT.goneMap = {}; LAUNCHCUT.trim = 20; LAUNCHCUT.finalMass = 2175; LAUNCHCUT.removed = ['CAPTURE RING', 'WATER TANK', 'DROGUE CHUTES'];
-    initLaunchCut('ascent'); renderFrame = quiet;
-    let t = 0; const stepTo = (T, fn) => { while (t < T) { fn(1 / 60); t += 1 / 60; } };
-    stepTo(5.4, updateAscentCut);  P.liftoff = still(ASCENT.scene, ascActiveCam());   // the pad camera: she has just lit and left the clamps
-    stepTo(10.2, updateAscentCut); P.maxq = still(ASCENT.scene, ascActiveCam());     // the couch at max-Q
-    stepTo(19.4, updateAscentCut); P.meco = still(ASCENT.scene, ascActiveCam());     // the couch after cutoff, the grit rising
-    disposeScene(ASCENT.scene); ASCENT.scene = null; ASCENT.camera = null; ASCENT.xcam = null; ASCENT.shot = null; ASCENT.debris = []; ASCENT.loose = [];
-    // the EVA: the tumble, the tether, the run-in
-    initEvaCut(); renderFrame = quiet; t = 0;
-    stepTo(4.8, updateEvaCut);  P.tumble = still(EVA.scene, EVA.camera);   // mid-spin with Mars sweeping past and the station in view (at 3.2 it faced empty sky)
-    stepTo(11.3, updateEvaCut); P.contact = still(EVA.scene, EVA.camera);
-    stepTo(15.5, updateEvaCut); P.dock = still(EVA.scene, EVA.camera);
-    disposeScene(EVA.scene); EVA.scene = null; EVA.camera = null; EVA.jets = []; EVA.strobes = []; EVA.tag = null; EVA.dockFrom = null; EVA.clipped = false;
-    // the ending: the crew at the open hatch, a few lines in
-    initFinale(); renderFrame = quiet; t = 0;
-    stepTo((FINALE.ext ? FIN_X.DOCK : 0) + (FINALE.sched ? FINALE.sched[3] + 0.6 : 5.2), updateFinale); P.home = still(FINALE.scene, FINALE.camera);   // past the docking shot, on the wide from Mark's eyes (Vogel's line)
-    disposeScene(FINALE.scene); FINALE.scene = null; FINALE.camera = null; FINALE.crew = []; FINALE.arm = null;
-    if (FINALE.ext) { disposeScene(FINALE.ext.scene); FINALE.ext = null; }
-  } catch (e) { console.warn('trailer plates:', e); }
-  finally {
+  const prep = () => { SFX.on = false; ambience = function () {}; engineStart = function () {}; addScore = function () {}; QTE.off = true; };   // no quick-time prompt may freeze a plate
+  const restore = () => {
     renderFrame = saved.rf; ambience = saved.amb; engineStart = saved.eng; addScore = saved.add;
     QTE.off = false; qteClear(); CHECKPOINT = saved.cp; CHECKPOINT_OF = saved.cpo;   // the cutscenes it stepped armed prompts and set checkpoints
     try { engineStop(); } catch (e) {}
@@ -16639,9 +16775,80 @@ function vidBuildPlates() {
     lockHint.style.display = saved.lock; cockpit.style.display = saved.cock; rcv.style.display = saved.rcv; visor.style.display = saved.visor;
     el('hudPhase').textContent = saved.phase;
     state = saved.state;
-    setTimeout(() => { SFX.on = saved.sfx; }, 600);         // outlasts the ascent's own delayed clunks
-    if (HERO.visible) heroStart();                            // hand the diorama back to the header
-  }
+    clearTimeout(VID.sfxBack); VID.sfxBack = setTimeout(() => { SFX.on = saved.sfx; }, 600);   // outlasts the ascent's own delayed clunks
+  };
+  /* Plates are rendered half again larger than the player (1440x810): the header plays the trailer at
+     full page width, and 960px plates blown up to that read as soft. The cut addresses them by
+     fraction, so their size is nobody else's business. */
+  const PW = Math.round(W * 1.5), PH = Math.round(H * 1.5);
+  const still = (scene, cam) => {                            // render ONE frame of a stepped scene into a new plate
+    const c = document.createElement('canvas'); c.width = PW; c.height = PH; const g = c.getContext('2d');
+    r.setSize(PW, PH, false); if (FX && FX.composer) FX.composer.setSize(PW, PH);
+    cam.aspect = W / H; cam.updateProjectionMatrix();
+    renderFrame = saved.rf; renderFrame(scene, cam); renderFrame = quiet;
+    g.drawImage(r.domElement, 0, 0, PW, PH);
+    // five sample points, not one: a single centre pixel on a dark hull read a perfectly good plate as blank
+    let lit = 0;
+    for (const [fx, fy] of [[0.5, 0.5], [0.25, 0.3], [0.75, 0.3], [0.25, 0.75], [0.75, 0.75]]) {
+      const px = g.getImageData(Math.floor(PW * fx), Math.floor(PH * fy), 1, 1).data; if (px[0] + px[1] + px[2] > 6) lit++;
+    }
+    return lit > 0 ? c : null;
+  };
+  const stepTo = (S, T, fn) => { while (S.t < T) { fn(1 / 30); S.t += 1 / 30; } };   // thirtieths: these are stills, and the flight integrates the same
+  const steps = [
+    // the title diorama from two more angles: low on the rover, close on the astronaut
+    () => { initMenuScene(); if (!MENU3D.scene) return;
+      renderFrame = quiet; updateMenu(1 / 60);
+      const cam = MENU3D.camera;
+      /* The rover shot is framed from the rover's own bounds, not a fixed point: the camera that sat at
+         wheel height for the old box rover showed the cargo truck as a wall of tyres. From behind its
+         right shoulder at ground level the whole truck fits, with the hab beyond it and the astronaut
+         standing off to the left — the three new models in one frame. */
+      const rb = new THREE.Box3().setFromObject(MENU3D.rover), rc = rb.getCenter(new THREE.Vector3());
+      cam.position.set(30, menuGroundY(30, -3) + 2.6, -3); cam.lookAt(rc.x, rc.y + 0.2, rc.z); P.low = still(MENU3D.scene, cam);
+      cam.position.set(9.5, menuGroundY(9.5, 14) + 2.3, 14); cam.lookAt(4, 2.1, 10); P.close = still(MENU3D.scene, cam);
+      menuTeardown(); },
+    // the asteroid field, five seconds in — a chase camera high off the fighter's left wing, so the ship
+    // fills the frame banking toward Mars (from the game's own seat it was a speck against the stars)
+    () => { initSpace('out'); renderFrame = quiet;
+      for (let i = 0; i < 150; i++) updateSpace(1 / 30);
+      { const sc = SPACE.camera, sp = SPACE.ship ? SPACE.ship.position : new THREE.Vector3(0, 0, -14); sc.position.set(-2.6, 2.2, -6.5); sc.lookAt(sp.x, sp.y - 0.2, sp.z - 4); }
+      P.space = still(SPACE.scene, SPACE.camera);
+      disposeScene(SPACE.scene); SPACE.scene = null; },
+    // the strip-down: from just behind the couch, the dashboard under the big forward window (all of it inside the
+    // letterbox and the push-in) and a porthole at the edge
+    () => { initStripDown(); renderFrame = quiet;
+      STRIP.camera.position.set(0.02, 0.02, 0.45); STRIP.camera.quaternion.setFromEuler(new THREE.Euler(0.03, 0.08, 0, 'YXZ'));
+      P.strip = still(STRIP.scene, STRIP.camera);
+      disposeScene(STRIP.scene); STRIP.scene = null; STRIP.camera = null; STRIP.items = []; STRIP.flying = []; },
+    // the launch: liftoff, max-Q, MECO
+    () => { LAUNCHCUT.goneMap = {}; LAUNCHCUT.trim = 20; LAUNCHCUT.finalMass = 2175; LAUNCHCUT.removed = ['CAPTURE RING', 'WATER TANK', 'DROGUE CHUTES'];
+      initLaunchCut('ascent'); renderFrame = quiet; const S = { t: 0 };
+      stepTo(S, 5.4, updateAscentCut);  P.liftoff = still(ASCENT.scene, ascActiveCam());   // the pad camera: she has just lit and left the clamps
+      stepTo(S, 10.2, updateAscentCut); P.maxq = still(ASCENT.scene, ascActiveCam());     // the couch at max-Q
+      stepTo(S, 19.4, updateAscentCut); P.meco = still(ASCENT.scene, ascActiveCam());     // the couch after cutoff, the grit rising
+      disposeScene(ASCENT.scene); ASCENT.scene = null; ASCENT.camera = null; ASCENT.xcam = null; ASCENT.shot = null; ASCENT.debris = []; ASCENT.loose = []; },
+    // the EVA: the tumble, the tether, the run-in
+    () => { initEvaCut(); renderFrame = quiet; const S = { t: 0 };
+      stepTo(S, 4.8, updateEvaCut);  P.tumble = still(EVA.scene, EVA.camera);   // mid-spin with Mars sweeping past and the station in view (at 3.2 it faced empty sky)
+      stepTo(S, 11.3, updateEvaCut); P.contact = still(EVA.scene, EVA.camera);
+      stepTo(S, 15.5, updateEvaCut); P.dock = still(EVA.scene, EVA.camera);
+      disposeScene(EVA.scene); EVA.scene = null; EVA.camera = null; EVA.jets = []; EVA.strobes = []; EVA.tag = null; EVA.dockFrom = null; EVA.clipped = false; },
+    // the ending: the crew at the open hatch, a few lines in
+    () => { initFinale(); renderFrame = quiet; const S = { t: 0 };
+      stepTo(S, (FINALE.ext ? FIN_X.DOCK : 0) + (FINALE.sched ? FINALE.sched[3] + 0.6 : 5.2), updateFinale); P.home = still(FINALE.scene, FINALE.camera);   // past the docking shot, on the wide from Mark's eyes (Vogel's line)
+      disposeScene(FINALE.scene); FINALE.scene = null; FINALE.camera = null; FINALE.crew = []; FINALE.arm = null;
+      if (FINALE.ext) { disposeScene(FINALE.ext.scene); FINALE.ext = null; } },
+  ];
+  let i = 0;
+  VID.building = true;
+  const run = () => {
+    if (VID.plates !== P) { VID.building = false; done(); return; }   // dropped meanwhile (a retake started over): this build stops here
+    if (i >= steps.length) { VID.building = false; if (HERO.visible) heroStart(); done(); return; }   // hand the diorama back to the header
+    prep(); try { steps[i++](); } catch (e) { console.warn('trailer plates:', e); } finally { restore(); }
+    if (sync) run(); else setTimeout(run, 0);
+  };
+  run();
 }
 
 /* ---- the hero plays the trailer ----
@@ -16664,7 +16871,7 @@ function heroFrame(now) {
   const c = document.getElementById('heroArt'); if (!c) return;
   const dt = Math.min(0.05, (now - HERO.last) / 1000); HERO.last = now;
   if (!VID.plates) return;                                    // until the footage exists the header keeps its load-time still, which is the trailer's first picture anyway
-  HERO.acc += dt; if (HERO.acc < 1 / 32) return;              // a background does not need every frame
+  HERO.acc += dt; if (HERO.acc < 1 / (TOUCH_ONLY ? 16 : 32)) return;   // a background does not need every frame, and on a phone half of those
   HERO.t = (HERO.t + HERO.acc / VID_K) % VID.dur; HERO.acc = 0;   // the same slowed pace as the player
   try { vidFrame(HERO.t, { canvas: c, plain: true }); HERO.fails = 0; } catch (e) { if (++HERO.fails > 3) heroStop(); }
 }
@@ -16954,8 +17161,8 @@ function openGameTab(level) {
   let w = null; try { w = window.open(url, '_blank'); } catch (e) {}
   if (!w) { if (level == null) enterGame(); else sitePlayLevelHere(level); }
 }
-/* Play on a phone or tablet: say first that the game needs a keyboard and mouse (and what it downloads), with a way in
-   anyway for a tablet with a keyboard attached. Once through, the rest of the visit does not ask again. */
+/* Play on a phone or tablet: say first how it is played with thumbs and what it downloads, with PLAY as the way in.
+   Once through, the rest of the visit does not ask again. */
 function touchGate(go) {
   let el = document.getElementById('touchGate');
   if (!el) {
@@ -16968,7 +17175,7 @@ function touchGate(go) {
       #touchGate .btn{font-size:13px;padding:12px 18px;min-height:44px}`;
     document.head.appendChild(st);
     el = document.createElement('div'); el.id = 'touchGate'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
-    el.innerHTML = '<div class="panel"><b>Keyboard and mouse needed</b><p>Red Dust is played with a keyboard and mouse and has no touch controls yet. The game also downloads about 80 MB. Open this page on a computer to play.</p><div class="tgB"><button class="btn" id="tgOk">OK</button><button class="btn ghost" id="tgGo">Play anyway</button></div></div>';
+    el.innerHTML = '<div class="panel"><b>Touch controls</b><p>Your left thumb moves, your right thumb looks, and each phase\'s buttons sit under your right hand. Hold the phone sideways. The game downloads about 15 MB to start and about 60 MB more as you go.</p><div class="tgB"><button class="btn" id="tgGo">&#9654; Play</button><button class="btn ghost" id="tgOk">Not now</button></div></div>';
     document.body.appendChild(el);
     el.addEventListener('click', e => { if (e.target === el) el.style.display = 'none'; });   // a tap outside closes it
   }
@@ -17737,7 +17944,7 @@ function vidToggle(on) {
     /* First play: show the acquiring card, let it paint, then build the plates (about a second of
        scene construction and physics stepping) and start the cut from the top. */
     VID.building = true; vidFrame(0);
-    setTimeout(() => { vidBuildPlates(); VID.building = false; VID.t = 0; if (VID.on) { VID.last = performance.now(); VID.raf = requestAnimationFrame(vidTick); } }, 40);
+    setTimeout(() => { vidBuildPlates(() => { VID.building = false; VID.t = 0; if (VID.on) { VID.last = performance.now(); VID.raf = requestAnimationFrame(vidTick); } }); }, 40);
     return;
   }
   VID.last = performance.now(); VID.raf = requestAnimationFrame(vidTick);
@@ -18263,7 +18470,7 @@ function boot() {
      when they land, those are taken again. */
   SIDECARS.then(ok => {
     if (!ok || state !== 'site') return;
-    if (VID.plates && VID.platesEarly && !VID.building) { VID.plates = null; vidBuildPlates(); if (!VID.on) vidPoster(); }
+    if (VID.plates && VID.platesEarly && !VID.building) { VID.plates = null; vidBuildPlates(() => { if (!VID.on) vidPoster(); }); }
   });
   requestAnimationFrame(loop);
   if (GAME_TAB) {
@@ -18277,7 +18484,12 @@ function boot() {
 }
 // the astronaut's textures decode first (a data URL, tens of milliseconds), so the first suit drawn is the real one;
 // if the sidecar is missing or slow the page boots anyway with the box figure
-const SITE_SIDECAR_FILES = ['astronaut', 'hab', 'radar', 'hand'], SITE_LOAD = { done: 0, total: SITE_SIDECAR_FILES.length };
+// a touch-only device (a phone or tablet: no hover, a coarse pointer) gets a lighter site, and the game's models only on Play
+const TOUCH_ONLY = !!(window.matchMedia && matchMedia('(hover: none) and (pointer: coarse)').matches);
+/* The site's own models. On a phone only the two the header's picture is made of hold the loading screen (8 MB); the dish and
+   the glove (2.6 MB) follow behind it and the header is retaken when they land (2026-10-09, "optimize for mobile"). */
+const SITE_SIDECAR_FILES = TOUCH_ONLY ? ['astronaut', 'hab'] : ['astronaut', 'hab', 'radar', 'hand'], SITE_SIDECAR_LATE = TOUCH_ONLY ? ['radar', 'hand'] : [];
+const SITE_LOAD = { done: 0, total: SITE_SIDECAR_FILES.length };
 function siteLoadTick() {   // the loading screen's bar and count
   const f = document.getElementById('slFill'), t = document.getElementById('slTxt'); if (!f) return;
   f.style.width = (6 + SITE_LOAD.done / SITE_LOAD.total * 88) + '%';
@@ -18287,46 +18499,60 @@ siteLoadTick();
 // done: fade the screen out (boot calls this), then take it out of the page
 function siteLoadDone() { const el = document.getElementById('siteLoad'); if (!el || el.classList.contains('done')) return; const f = document.getElementById('slFill'); if (f) f.style.width = '100%'; el.classList.add('done'); setTimeout(() => el.remove(), 600); }
 const SITE_SIDECARS = Promise.all(SITE_SIDECAR_FILES.map(n => loadSidecar(n, SITE_LOAD).then(ok => { siteLoadTick(); return ok; })))
-  .then(() => Promise.all([astroInit(), habInit(), radarInit()])).then(rs => rs.every(Boolean), () => false);
+  .then(() => Promise.all([astroInit(), habInit(), SITE_SIDECAR_LATE.length ? true : radarInit()])).then(rs => rs.every(Boolean), () => false);
+const SITE_SIDECARS_LATE = SITE_SIDECARS.then(() => Promise.all(SITE_SIDECAR_LATE.map(n => loadSidecar(n, { done: 0 }))))
+  .then(() => SITE_SIDECAR_LATE.length ? radarInit() : true)
+  .then(ok => { if (SITE_SIDECAR_LATE.length && state === 'site') { try { drawHeroArt(); heroKeepStill(); } catch (e) {} } return !!ok; }, () => false);
 /* The game's own sidecars, fetched once the page is up. Each is a plain script tag (so it works from a page opened
    straight off disk, where fetch() is blocked); a missing file resolves as a failure and that model's built
-   fallback is used. GAME_LOAD counts them in for the entry gate. */
-const GAME_SIDECAR_FILES = ['npc', 'npc-lo', 'gate', 'hhand', 'vend', 'cooler', 'tank', 'valve', 'bench', 'wreck', 'pad', 'oxy', 'shovel', 'potato', 'pose-salute', 'pose-wave', 'pose-thumbsup', 'pose-float', 'pose-grab', 'dash', 'o2tank', 'chair', 'finale', 'strip', 'ascent', 'radio'];
-const GAME_LOAD = { done: 0, total: GAME_SIDECAR_FILES.length };
-let GAME_READY = false;
+   fallback is used. In two sets (2026-10-09, "optimize for mobile and game"): the first phases' models, which the entry
+   gate waits for (GAME_LOAD, about 14 MB), and everything from Houston on (GAME_SIDECAR_LATE, about 60 MB), fetched in the
+   background once the first set is in — long before the game gets there on any normal connection, and waited for by
+   lateGate if it is not. The game used to wait for all of it before it would start. */
+const GAME_SIDECAR_FILES = ['pad', 'wreck', 'oxy', 'shovel', 'potato', 'gate'];
+const GAME_SIDECAR_LATE = ['npc', 'npc-lo', 'hhand', 'vend', 'cooler', 'tank', 'valve', 'bench', 'pose-salute', 'pose-wave', 'pose-thumbsup', 'pose-float', 'pose-grab', 'dash', 'o2tank', 'chair', 'finale', 'strip', 'ascent', 'radio'];
+const GAME_LOAD = { done: 0, total: GAME_SIDECAR_FILES.length }, GAME_LOAD_LATE = { done: 0, total: GAME_SIDECAR_LATE.length };
+let GAME_READY = false, GAME_LATE_READY = false;
 function loadSidecar(name, count) {   // count: the tally it adds to (the site's, or by default the game's)
   return new Promise(res => { const s = document.createElement('script'); s.src = 'mars-crash-' + name + '.js'; s.async = true;
     s.onload = () => { (count || GAME_LOAD).done++; res(true); }; s.onerror = () => { (count || GAME_LOAD).done++; res(false); }; document.head.appendChild(s); });
 }
-/* On a touch-only device (a phone or tablet: no hover, a coarse pointer) none of these is fetched until someone goes to
-   play (gameLoadGate starts them): the game needs a keyboard and mouse, and its models are about 70 MB of mobile data
-   the site does not need. Meanwhile the site's pictures use the built fallbacks (the trailer's crew and cabin parts,
-   the suits' poses). Everywhere else they load straight after the site's own, as before. */
-const TOUCH_ONLY = !!(window.matchMedia && matchMedia('(hover: none) and (pointer: coarse)').matches);
+/* On a touch-only device none of these is fetched until someone goes to play (gameLoadGate starts them): the game needs
+   a keyboard and mouse, and its models are about 75 MB of mobile data the site does not need. Meanwhile the site's
+   pictures use the built fallbacks (the trailer's crew and cabin parts, the suits' poses). Everywhere else they load
+   straight after the site's own, as before. */
 let gameSidecarsGo = null;
-const GAME_SIDECARS = new Promise(go => { gameSidecarsGo = go; }).then(() => SITE_SIDECARS).then(() => Promise.all(GAME_SIDECAR_FILES.map(loadSidecar)))
-  .then(() => Promise.all([npcInit(), gateInit(), hhandInit(), vendInit(), coolerInit(), tankInit(), valveInit(), benchInit(), wreckInit(), padInit(), oxyInit(), shovelInit(), potatoInit(), posesInit(), propsInit(), finaleInit(), stripArtInit(), ascArtInit(), radioArtInit()]))
+const GAME_SIDECARS = new Promise(go => { gameSidecarsGo = go; }).then(() => SITE_SIDECARS).then(() => Promise.all(GAME_SIDECAR_FILES.map(n => loadSidecar(n))))   // not .map(loadSidecar): map's index would land in `count`, and the gate's bar stuck at "1 of 26" for as long as it existed
+  .then(() => Promise.all([gateInit(), wreckInit(), padInit(), oxyInit(), shovelInit(), potatoInit()]))
   .then(rs => rs.every(Boolean), () => false);
-GAME_SIDECARS.then(() => { GAME_READY = true; try { fallRepose(); } catch (e) {} });
+GAME_SIDECARS.then(() => { GAME_READY = true; });
+const GAME_SIDECARS_LATE = GAME_SIDECARS.then(() => Promise.all(GAME_SIDECAR_LATE.map(n => loadSidecar(n, GAME_LOAD_LATE))))
+  .then(() => Promise.all([npcInit(), hhandInit(), vendInit(), coolerInit(), tankInit(), valveInit(), benchInit(), posesInit(), propsInit(), finaleInit(), stripArtInit(), ascArtInit(), radioArtInit()]))
+  .then(rs => rs.every(Boolean), () => false);
+GAME_SIDECARS_LATE.then(() => { GAME_LATE_READY = true; try { fallRepose(); } catch (e) {} });
 if (!TOUCH_ONLY) gameSidecarsGo();
-const SIDECARS = Promise.all([SITE_SIDECARS, GAME_SIDECARS]).then(rs => rs.every(Boolean));
+const SIDECARS = Promise.all([SITE_SIDECARS, SITE_SIDECARS_LATE, GAME_SIDECARS, GAME_SIDECARS_LATE]).then(rs => rs.every(Boolean));
 /* Entering the game before its models are in: a small panel with a bar, which hands over the moment they land.
    Thirty seconds is the ceiling — past that the game starts with whatever has arrived and the fallbacks. */
-function gameLoadGate(next) {
+function gameLoadGate(next, late) {   // late: the second set (GAME_SIDECAR_LATE), for a phase from Houston on reached before it is in
+  if (gameLoadGate.busy) return; gameLoadGate.busy = true;
   gameSidecarsGo();   // on a touch-only device this is where the game's models start loading (see GAME_SIDECARS)
+  const LOAD = late ? GAME_LOAD_LATE : GAME_LOAD, ready = () => late ? GAME_LATE_READY : GAME_READY;
   let el = document.getElementById('loadGate');
   if (!el) { el = document.createElement('div'); el.id = 'loadGate'; el.innerHTML = '<div class="panel lg"><img class="lgPatch" src="mars-crash-logo.png" alt="" onerror="this.remove()"><div class="lgBody"><b>LOADING MARS</b><small id="lgTxt"></small><div class="lgBar"><i id="lgFill"></i></div></div></div>'; document.body.appendChild(el); }
   el.style.display = 'flex';
   const t0 = performance.now();
   const tick = () => {
-    const f = GAME_LOAD.done / GAME_LOAD.total;
+    const f = LOAD.done / LOAD.total;
     document.getElementById('lgFill').style.width = (6 + f * 94) + '%';
-    document.getElementById('lgTxt').textContent = GAME_LOAD.done < GAME_LOAD.total ? 'models ' + GAME_LOAD.done + ' of ' + GAME_LOAD.total : 'unpacking textures';
-    if (GAME_READY || performance.now() - t0 > 30000) { GAME_READY = true; el.style.display = 'none'; next(); return; }
+    document.getElementById('lgTxt').textContent = LOAD.done < LOAD.total ? 'models ' + LOAD.done + ' of ' + LOAD.total : 'unpacking textures';
+    if (ready() || performance.now() - t0 > 30000) { if (late) GAME_LATE_READY = true; else GAME_READY = true; el.style.display = 'none'; gameLoadGate.busy = false; next(); return; }
     requestAnimationFrame(tick);
   };
   tick();
 }
+// the hand-off into a phase that needs the second set: straight through once it is in, the loading panel until then
+function lateGate(next) { return () => { if (GAME_LATE_READY) next(); else gameLoadGate(next, true); }; }
 // up to 15 s behind the loading screen (it was 5 s with no screen); past that the site boots with the stand-ins and retakes when they land
 Promise.race([SITE_SIDECARS, new Promise(r => setTimeout(() => r(false), 15000))]).then(boot, boot);
 </script>
