@@ -10480,8 +10480,8 @@ function evaQtes() {
   return [
     { at: EVA_T.ARREST, lead: 1.9, key: 'act', verb: 'FIRE RCS · KILL THE SPIN', mash: 7, mash2: 4, score: 200,
       lose: () => qteDeath('LOST IN THE SPIN', 'The rate never came off. Nobody could match a tumble that fast.', () => Sound.thud()) },
-    { at: EVA_T.TETHER, lead: 1.15, key: 'use', verb: 'GRAB HER HAND', score: 300,
-      lose: () => qteDeath('OUT OF REACH', 'Her glove closed on nothing. You drifted past her, and the shuttle got smaller.', () => Sound.thud()) },
+    { at: EVA_T.TETHER, lead: 1.15, key: 'use', verb: 'GRAB HIS HAND', score: 300,
+      lose: () => qteDeath('OUT OF REACH', 'His glove closed on nothing. You drifted past him, and the shuttle got smaller.', () => Sound.thud()) },
   ];
 }
 function initLaunchCut(mode) {
@@ -10742,10 +10742,16 @@ function updateFailCut3D(dt) {
   const back = F.broke ? 1 + 0.85 * (1 - Math.pow(1 - Math.min(1, (t - TB) / 2.6), 2)) : 1;   // after the breakup it eases back to take in the cloud
   cam.position.set(F.focus.x + 34 * back + Math.sin(t * 37) * sh * 0.5, F.focus.y + 10 * back + Math.sin(t * 29 + 1) * sh * 0.4, F.focus.z + 46 * back);
   cam.lookAt(F.focus.x - 2, F.focus.y - 2, F.focus.z); cam.rotateZ(Math.sin(t * 17) * 0.004 * sh);
-  // captions, as the old cut had them
-  const cap = t < 2.2 ? ['#8fd8ff', 'HOUSTON FLIGHT', 'T+ 00:24 · Ascent nominal. Go at throttle up.'] : t < 4.0 ? ['#ffd24a', 'BOOSTER', 'T+ 01:40 · Max-Q. Hull temperature rising.'] : t < TB ? ['#ff6a4a', 'GUIDANCE', '⚠ Attitude lost. We have a guidance anomaly.'] : t < 7.0 ? ['#ff6a4a', 'HOUSTON FLIGHT', 'Vehicle breakup.'] : ['#ff6a4a', 'LAUNCH FAILED', 'Supply vehicle lost.'];
-  const html = `<span style="color:${cap[0]}">${cap[1]}</span><br><span style="color:#eaf4ff;font-size:0.82em">${cap[2]}</span>`;
-  if (F.capHtml !== html) { F.capHtml = html; banner.innerHTML = html; if (t > 0.1) Sound.beep(); }
+  // the loop, spoken (RADIO_ART, radioTick), each line held until the next; the last is the verdict, a beep with no recording
+  if (!F.rd || t < F.rd.last) F.rd = { hold: true, list: [
+    { at: 0.3, key: 'fail_maxq', who: 'BOOSTER', col: '#ffd24a', line: 'T+ 01:40 · Max-Q. Hull temperature rising.' },
+    { at: 3.4, key: 'fail_guidance', who: 'GUIDANCE', col: '#ff6a4a', line: '⚠ Attitude lost. We have a guidance anomaly.' },   // she breaks up under it
+    { at: TB + 0.5, key: 'fail_breakup', who: 'HOUSTON FLIGHT', col: '#ff6a4a', line: 'Vehicle breakup. We have lost the vehicle.' },
+    { at: 7.0, key: null, who: 'LAUNCH FAILED', col: '#ff6a4a', line: 'Supply vehicle lost.' },
+  ] };
+  F.rd.last = t;
+  const html = radioTick(F.rd, t, '');
+  if (F.capHtml !== html) { F.capHtml = html; banner.innerHTML = html; }
   renderFrame(sc, cam);
 }
 /* ---- the rescue launch ----
@@ -10758,8 +10764,35 @@ function updateFailCut3D(dt) {
                 pulls away toward Mars.
    Then the asteroid run (initSpace). The rocket and tower are the game's own (buildBooster, buildGantry, as at
    Houston); the orbit shot is built like the failure cut's (earthTextures, spaceBackdrop), but this one goes right. */
+/* ===== THE RADIO: recorded lines for the cutscenes that used to beep (mars-crash-radio.js, window.RADIO_DATA) =====
+   The user: "voice acting change with api and updated scenes". The EVA, the rescue launch and the failed launch speak now:
+   Martinez (Callum) and Beck (Miles) from the shuttle and Lewis (Sloane) in the EVA; Launch Control (Desmond), Flight
+   (Knox), Booster (Reid) and Guidance (Landon) for Houston's two launches. The same voices as the trailer, the strip-down,
+   the ascent and the ending, so the cast is one cast (the EVA's rescuer was "Hayes" in the trailer and the nametag; it is
+   Beck, as in the book and the ending). A line fires at its time, or as soon as the one before it has finished
+   (radioTick), so recordings of any length never talk over each other; the beep stands in when a recording is missing. */
+const RADIO_ART = { buf: {}, decoded: false };
+function radioArtInit() { if (!window.RADIO_DATA) return Promise.resolve(false); radioArtDecode(); return Promise.resolve(true); }
+function radioArtDecode() {
+  const D = window.RADIO_DATA; if (!D || RADIO_ART.decoded) return;
+  sfxInit(); const ctx = SFX.ctx; if (!ctx) return;
+  RADIO_ART.decoded = true;
+  const dec = s => new Promise(res => { if (!s) return res(null); try { const p = ctx.decodeAudioData(recB64(s), b => res(b), () => res(null)); if (p && p.catch) p.catch(() => res(null)); } catch (e) { res(null); } });
+  for (const k in (D.snd || {})) dec(D.snd[k]).then(b => { if (b && recStats(b).peak >= 0.03) RADIO_ART.buf[k] = b; });
+  setTimeout(() => { window.RADIO_DATA = null; }, 4000);
+}
+/* One loop: Rd.list is [{ at, key, who, col, line }] in order; `t` the scene's clock; `beatHtml` what to show when nobody is
+   talking (with Rd.hold, the last line stays up instead). Returns the caption for this frame. */
+function radioTick(Rd, t, beatHtml) {
+  if (!Rd.i) Rd.i = 0;
+  if (Rd.i < Rd.list.length && t >= Rd.list[Rd.i].at && t >= (Rd.until || 0)) {
+    const r = Rd.list[Rd.i++], b = r.key ? RADIO_ART.buf[r.key] : null; Rd.cur = r; Rd.until = t + (b ? b.duration : 2.6) + 0.35;
+    if (!finalePlay(b, 2.0)) Sound.beep();
+  }
+  return Rd.cur && (t < Rd.until || Rd.hold) ? `<span style="color:${Rd.cur.col}">${Rd.cur.who}</span><br><span style="color:#eaf4ff;font-size:0.82em">${Rd.cur.line}</span>` : beatHtml;
+}
 const RL = { pad: null, space: null, cam: null, t: 0, said: {}, skip: false, done: false, capHtml: '' };
-const RL_T = { IGN: 2.4, LIFT: 3.6, CLIMB: 7.6, SPACE: 11.6, MECO: 12.4, STAGE: 13.0, LIGHT: 14.0, END: 17.6 };
+const RL_T = { IGN: 6.4, LIFT: 7.6, CLIMB: 11.6, SPACE: 15.6, MECO: 16.4, STAGE: 17.0, LIGHT: 18.0, END: 25.4 };   // the loop is spoken now (2026-10-09): ignition lands on "Ignition", the beats sit where the recordings' lengths put them
 const _rlA = new THREE.Vector3(), _rlB = new THREE.Vector3();
 function rlDispose() {
   for (const k of ['pad', 'space']) if (RL[k]) { disposeScene(RL[k]); RL[k] = null; }
@@ -10855,7 +10888,7 @@ function initRescueLaunch3D() {
   linearize(O);
 
   const cam = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.5, 12000);
-  Object.assign(RL, { pad: S, space: O, cam, b, dome, fire, glow, collar, clouds, stack, lower, upper, flame2: b2.flame, uflame, t: 0, said: {}, skip: false, done: false, capHtml: '', shake: 0, lowV: null, upV: null });
+  Object.assign(RL, { pad: S, space: O, cam, b, dome, fire, glow, collar, clouds, stack, lower, upper, flame2: b2.flame, uflame, t: 0, said: {}, skip: false, done: false, capHtml: '', shake: 0, lowV: null, upV: null, rd: null });
   banner.classList.remove('hidden');
   r.compile(S, cam); r.compile(O, cam);
   return true;
@@ -10905,7 +10938,7 @@ function updateRescueLaunch(dt) {
       rlThrust(t);
     }
     // max-Q, in the climb: the vapour collar flickering round the body
-    const q = Math.max(0, 1 - Math.abs(t - 9.4) / 0.9); R.collar.material.opacity = q * (0.6 + Math.random() * 0.2); R.collar.material.map.offset.x += dt * 0.35; R.collar.scale.set(1 + Math.random() * 0.05, 0.9 + Math.random() * 0.2, 1 + Math.random() * 0.05);
+    const q = Math.max(0, 1 - Math.abs(t - (T.CLIMB + 1.8)) / 0.9); R.collar.material.opacity = q * (0.6 + Math.random() * 0.2); R.collar.material.map.offset.x += dt * 0.35; R.collar.scale.set(1 + Math.random() * 0.05, 0.9 + Math.random() * 0.2, 1 + Math.random() * 0.05);
     // the sky goes from blue to black as it climbs
     const hi = Math.max(0, Math.min(1, (alt - 200) / 1100)); R.dome.material.color.setScalar(1 - hi * 0.88); R.pad.fog.far = 3200 + hi * 9000; R.pad.fog.color.setRGB(0.69 * (1 - hi * 0.85), 0.56 * (1 - hi * 0.85), 0.4 * (1 - hi * 0.85));
     // the camera: low on the pad, pushing in, then tilting up after it; then a chase alongside at altitude
@@ -10944,7 +10977,7 @@ function updateRescueLaunch(dt) {
     }
     if (t >= T.LIGHT) {
       once('light', () => { engineStart('rocket'); R.uflame.visible = true; Sound.boom(); });
-      const k = t - T.LIGHT; R.upper.position.y += (8 + k * 7) * dt / st.scale.x;   // it pulls away along its own axis
+      const k = t - T.LIGHT; R.upper.position.y += (6 + k * 3) * dt / st.scale.x;   // it pulls away along its own axis (gently: the shot now runs seven seconds past the relight)
       const up = Math.min(1, k / 0.35);                                        // the plume blooms over a third of a second
       R.uflame.scale.set(up * (1 + Math.sin(t * 43) * 0.06), up * (1 + Math.sin(t * 31) * 0.12), up * (1 + Math.sin(t * 37) * 0.06));
       engineUpdate(Math.min(40, 18 + k * 8), true); rlThrust(t);
@@ -10955,25 +10988,24 @@ function updateRescueLaunch(dt) {
     if (R.clouds) R.clouds.rotation.y += dt * 0.004;
     // the camera holds off the vehicle's side, drifting with the stack, then turns to follow the upper stage away
     const f = _rlA.set(0, 12, 0).applyMatrix4(st.matrixWorld).clone(), uw = _rlB.set(0, 20, 0).applyMatrix4(R.upper.matrixWorld);
-    const fl = Math.min(1, Math.max(0, t - T.LIGHT) / 2.2), fe = fl * fl * (3 - 2 * fl) * 0.62;
+    const fl = Math.min(1, Math.max(0, t - T.LIGHT) / 4.0), fe = fl * fl * (3 - 2 * fl) * 0.9;   // the camera turns most of the way onto the upper stage and keeps it
     cam.fov = 46; cam.updateProjectionMatrix();
     cam.position.set(f.x - 8, f.y + 9, f.z + 58 + fe * 14); cam.lookAt(f.x + 4 + (uw.x - f.x - 4) * fe, f.y + (uw.y - f.y) * fe, f.z);
   }
-  // the loop: captions from the flight loop, a beep as each new call comes in
-  const cap = t < 1.2 ? ['#8fd8ff', 'LAUNCH CONTROL', 'T-minus ten. All stations go for launch.']
-    : t < T.IGN ? ['#8fd8ff', 'LAUNCH CONTROL', 'T-minus three. Ignition sequence start.']
-    : t < T.LIFT ? ['#ffd24a', 'LAUNCH CONTROL', 'Main engine start.']
-    : t < T.LIFT + 2.2 ? ['#3fd06a', 'LAUNCH CONTROL', 'Liftoff! Rescue 1 has cleared the tower.']
-    : t < T.CLIMB ? ['#8fd8ff', 'HOUSTON FLIGHT', 'Roll program. Pitch and roll nominal.']
-    : t < 10.3 ? ['#ffd24a', 'BOOSTER', 'Max-Q. Throttling through.']
-    : t < T.SPACE ? ['#8fd8ff', 'HOUSTON FLIGHT', 'Trajectory nominal. Go at throttle up.']
-    : t < T.MECO ? ['#8fd8ff', 'HOUSTON FLIGHT', 'Booster at altitude. Stand by for MECO.']
-    : t < T.STAGE ? ['#ffd24a', 'BOOSTER', 'MECO. Stand by for separation.']
-    : t < T.LIGHT ? ['#ffd24a', 'BOOSTER', 'Stage separation confirmed.']
-    : t < 16.0 ? ['#3fd06a', 'RESCUE 1', 'Upper stage ignition. Trans-Mars injection.']
-    : ['#3fd06a', 'HOUSTON FLIGHT', 'Godspeed, Rescue 1. Bring him home.'];
-  const html = `<span style="color:${cap[0]}">${cap[1]}</span><br><span style="color:#eaf4ff;font-size:0.82em">${cap[2]}</span>`;
-  if (R.capHtml !== html) { R.capHtml = html; banner.innerHTML = html; if (t > 0.1) Sound.beep(); }
+  // the loop, spoken (RADIO_ART, radioTick): Launch Control counts her down and calls the tower, Flight and Booster call the climb; the beat under it
+  // (six lines: nine were recorded, and at the recordings' lengths nine ran the loop twelve seconds past the picture)
+  if (!R.rd) R.rd = { list: [
+    { at: 0.2, key: 'rl_count', who: 'LAUNCH CONTROL', col: '#8fd8ff', line: 'T-minus ten. All stations are go for launch.' },
+    { at: 3.7, key: 'rl_ign', who: 'LAUNCH CONTROL', col: '#8fd8ff', line: 'Three. Two. One. Ignition.' },                 // 3.6 s: "Ignition" on T.IGN
+    { at: T.LIFT + 0.2, key: 'rl_lift', who: 'LAUNCH CONTROL', col: '#3fd06a', line: 'Liftoff! Rescue 1 has cleared the tower.' },
+    { at: T.CLIMB + 1.5, key: 'rl_maxq', who: 'BOOSTER', col: '#ffd24a', line: 'Max-Q. Throttling through.' },
+    { at: T.STAGE + 0.2, key: 'rl_meco', who: 'BOOSTER', col: '#ffd24a', line: 'MECO. Stage separation confirmed.' },
+    { at: T.LIGHT + 2.8, key: 'rl_godspeed', who: 'HOUSTON FLIGHT', col: '#3fd06a', line: 'Godspeed, Rescue 1. Bring him home.' },
+  ] };
+  const beat = t < T.IGN ? ['#8fd8ff', 'TERMINAL COUNT'] : t < T.LIFT ? ['#ffd24a', 'IGNITION · HOLD-DOWN'] : t < T.CLIMB ? ['#3fd06a', 'LIFTOFF']
+    : t < T.SPACE ? ['#8fd8ff', 'ASCENT · DOWNRANGE'] : t < T.STAGE ? ['#ffd24a', 'MECO'] : t < T.LIGHT ? ['#ffd24a', 'STAGE SEPARATION'] : ['#3fd06a', 'TRANS-MARS INJECTION'];
+  const html = radioTick(R.rd, t, `<span style="color:${beat[0]}">${beat[1]}</span>`);
+  if (R.capHtml !== html) { R.capHtml = html; banner.innerHTML = html; }
   renderFrame(scene, cam);
   if (t > T.END && !R.done) rlFinish();
 }
@@ -10985,7 +11017,7 @@ function rlFinish() {
 function updateLaunchCut(dt) {
   if (LAUNCHCUT.mode === 'ascent') return updateAscentCut(dt);
   if (LAUNCHCUT.mode === 'rescue') return updateRescueLaunch(dt);
-  if (FAILCUT.scene) { const L = LAUNCHCUT; L.t += dt; updateFailCut3D(dt); if (L.t > 9.0 && !L.done) { L.done = true; showLaunchFail(); } return; }
+  if (FAILCUT.scene) { const L = LAUNCHCUT; L.t += dt; updateFailCut3D(dt); if (L.t > 13.0 && !L.done) { L.done = true; showLaunchFail(); } return; }   // 13, not 9: the loop's last call ends at about 11.6 and the verdict follows it
   const L = LAUNCHCUT; L.t += dt;
   const cx = L.w * 0.5, cy = L.h * 0.36;   // where the rocket is when it breaks apart
   if (L.t >= 4.8 && !L.spawned) {
@@ -12825,7 +12857,7 @@ function buildEvaCrew() {
   tg.fillStyle = 'rgba(6,18,16,0.82)'; tg.fillRect(0, 0, 256, 96);
   tg.strokeStyle = '#2ad07a'; tg.lineWidth = 3; tg.strokeRect(4, 4, 248, 88);
   tg.textAlign = 'center'; tg.textBaseline = 'middle';
-  tg.fillStyle = '#eafff2'; tg.font = 'bold 40px monospace'; tg.fillText('HAYES', 128, 36);
+  tg.fillStyle = '#eafff2'; tg.font = 'bold 40px monospace'; tg.fillText('BECK', 128, 36);
   tg.fillStyle = '#7fe8b0'; tg.font = 'bold 27px monospace'; tg.fillText('EVA-2', 128, 71);
   const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: srgb(new THREE.CanvasTexture(tc)),
     transparent: true, opacity: 0, depthWrite: false }));
@@ -13099,18 +13131,26 @@ function initEvaCut() {
   EVA.vel = new THREE.Vector3(0, 0.05, 1.25);
   body.position.set(0, 0.4, 4.6);
   EVA.t = 0; EVA.o2 = 21; EVA.range = 0; EVA.tgt = 'MAV'; EVA.cap = ''; EVA.beat = '';
-  EVA.skipped = false; EVA.done = false; EVA.said = {}; EVA.dockFrom = null; EVA.clipped = false;
+  EVA.skipped = false; EVA.done = false; EVA.said = {}; EVA.pending = []; EVA.sayUntil = 0; EVA.dockFrom = null; EVA.clipped = false;
   qteArm(evaQtes()); checkpoint(initEvaCut, 'eva');                 // the prompts; a death in here replays the EVA
   state = 'eva';
   renderer.compile(scene, camera);
 }
 
+// a line on the loop: queued, so that it is heard once the one before it has finished (evaPump); the beep when there is no recording
 function evaSay(key, who, line, col) {
   if (EVA.said[key]) return;
   EVA.said[key] = true;
-  EVA.cap = `<span style="color:${col || '#8fd8ff'}">${who}</span><br>` +
-            `<span style="color:#eaf4ff;font-size:0.82em">${line}</span>`;
-  Sound.beep();
+  (EVA.pending = EVA.pending || []).push({ key, who, line, col });
+  evaPump();
+}
+function evaPump() {
+  const E = EVA; if (!E.pending || !E.pending.length || E.t < (E.sayUntil || 0)) return;
+  const r = E.pending.shift(), b = RADIO_ART.buf['eva_' + r.key];
+  E.cap = `<span style="color:${r.col || '#8fd8ff'}">${r.who}</span><br>` +
+          `<span style="color:#eaf4ff;font-size:0.82em">${r.line}</span>`;
+  E.sayUntil = E.t + (b ? b.duration : 2.4) + 0.35;
+  if (!finalePlay(b, 2.0)) Sound.beep();
 }
 
 function updateEvaCut(dt) {
@@ -13227,14 +13267,14 @@ function updateEvaCut(dt) {
   else if (t < EVA_T.TURN) { E.tgt = 'CREW'; E.range = E.body.position.distanceTo(E.crew.position); }
   else { E.tgt = 'SHUTTLE'; E.range = E.body.position.distanceTo(E.shuttle.position); }
 
-  if (t > 0.5) evaSay('clear', 'MAV — YOU', 'Hatch is blown. I am clear of the vehicle.', '#8fd8ff');
-  if (t > EVA_T.PUSH + 0.9) evaSay('tumble', 'SHUTTLE — CREW', 'We see you. You are in a flat spin — kill it and hold still.', '#ffd24a');
-  if (t > EVA_T.ARREST + 0.2) evaSay('arrest', 'MAV — YOU', 'Firing to null the rate. Coming to rest.', '#8fd8ff');
-  if (t > EVA_T.SPOT + 0.3) evaSay('coming', 'SHUTTLE — CREW', 'Hold what you have got. I am coming out to you.', '#ffd24a');
-  if (t > EVA_T.CLOSE + 0.2) evaSay('brake', 'EVA-2 — CREW', 'Braking. Thirty metres. I have you in sight.', '#ffd24a');
-  if (t > EVA_T.TETHER) evaSay('got', 'EVA-2 — CREW', 'Tether on. I have got you. You are not going anywhere.', '#3fd06a');
-  if (t > EVA_T.TURN + 0.6) evaSay('home', 'EVA-2 — CREW', 'Shuttle is off your nose. Let us go home.', '#3fd06a');
-  if (t > EVA_T.DOCK - 1.4) evaSay('inbound', 'SHUTTLE', 'Airlock is open and lit. Come on in.', '#3fd06a');
+  // the loop (Mark says nothing, as everywhere else: the shuttle calls what he does); Martinez on the shuttle, Beck coming out, Lewis at the lock
+  // (five lines in sixteen seconds is what the recordings' lengths allow: each waits for the one before it)
+  if (t > 0.5) evaSay('clear', 'SHUTTLE — MARTINEZ', "Hatch is blown. He's out.", '#ffd24a');
+  if (t > EVA_T.PUSH + 0.9) evaSay('tumble', 'SHUTTLE — MARTINEZ', "We see you, Mark. You're in a flat spin. Kill it, and hold still.", '#ffd24a');
+  if (t > EVA_T.SPOT + 0.3) evaSay('coming', 'EVA-2 — BECK', "Hold what you've got. I'm coming out to you.", '#ffd24a');
+  if (t > EVA_T.TETHER) evaSay('got', 'EVA-2 — BECK', "Tether on. I've got you. You're not going anywhere.", '#3fd06a');
+  if (t > EVA_T.TURN + 0.6) evaSay('home', 'EVA-2 — BECK', "Let's go home.", '#3fd06a');
+  evaPump();
 
   if (t >= EVA_T.TETHER && !E.clipped) { E.clipped = true; Sound.clunk(); Sound.chime(); addScore(1200, 'RENDEZVOUS'); }
 
@@ -17233,13 +17273,13 @@ const VID_SHOTS = [
     if (!_kb(g, P.contact, _vc(0.9, 0.7, _ease(u)), _vc(0.55, 0.62, u), 0.5)) _sky(g, false);
     _vig(g, 0.6);
     _chyron(g, 'EVA · RATE NULL · RNG 2 m · TGT CREW', 1);
-    _radio(g, 'EVA-2 — HAYES', 'Tether on. I have got you. You are not going anywhere.', u * 1.5, 1); }],
+    _radio(g, 'EVA-2 — BECK', 'Tether on. I have got you. You are not going anywhere.', u * 1.5, 1); }],
   [30.2, 32.6, false, (g, u, t) => { const P = VID.plates || {};
     const home = P.home && u > 0.48, v = home ? (u - 0.48) / 0.52 : u / 0.48;   // the run-in, then a cut to the crew waiting at the hatch
     if (!_kb(g, home ? P.home : P.dock, _vc(home ? 0.94 : 0.9, home ? 0.86 : 0.82, home ? v : u), 0.5, 0.5)) _sky(g, false);
     _vig(g, 0.6);
     _chyron(g, home ? 'HERMES · AIRLOCK 1 · CREW OF FIVE' : 'EVA · TGT SHUTTLE · AIRLOCK LIT', 1);
-    if (home) _radio(g, 'LEWIS', 'Welcome aboard, Watney.', v * 2.2, 1); else _radio(g, 'EVA-2 — HAYES', 'Shuttle is off your nose. Let us go home.', u * 3.4, 1);
+    if (home) _radio(g, 'LEWIS', 'Welcome aboard, Watney.', v * 2.2, 1); else _radio(g, 'EVA-2 — BECK', 'Shuttle is off your nose. Let us go home.', u * 3.4, 1);
     if (u > 0.75) { g.fillStyle = 'rgba(0,0,0,' + ((u - 0.75) / 0.25) + ')'; g.fillRect(0, 0, VID_W, VID_H); } }],
   [32.6, 36.0, true, (g, u, t) => {                                          // the title
     g.fillStyle = '#02030a'; g.fillRect(0, 0, VID_W, VID_H);
@@ -17477,7 +17517,7 @@ function musSync() {
 const VO_REC = { lines: null, loading: false, ready: false, playing: new Set(), radio: null };
 function voRecLoad() {
   if (VO_REC.loading) return; VO_REC.loading = true;
-  loadSidecar('vo', { done: 0 }).then(ok => { if (!ok || !window.TRAILER_VO || !window.TRAILER_VO.lines) return; voRecDecode(); });
+  loadSidecar('vo', { done: 0 }).then(ok => { if (!ok || !window.TRAILER_VO || !window.TRAILER_VO.lines) { VO_REC.failed = true; return; } voRecDecode(); });
   loadSidecar('trailer-music', { done: 0 }).then(ok => { if (ok) tmusLanded(); });   // the recorded score (THE TRAILER'S RECORDED SCORE)
 }
 function voRecDecode() {
@@ -17487,7 +17527,7 @@ function voRecDecode() {
   const dec = s => new Promise(res => { try { const p = ctx.decodeAudioData(b64(s), b => res(b), () => res(null)); if (p && p.catch) p.catch(() => res(null)); } catch (e) { res(null); } });
   VO_REC.lines = [];   // claimed: a second call decodes nothing
   Promise.all(D.lines.map(l => dec(l.mp3).then(buf => buf ? { at: l.t, text: l.text, kind: l.kind, who: l.who, buf, gain: l.gain || 1 } : null))).then(ls => {
-    if (ls.some(l => !l)) { VO_REC.lines = null; return; }   // a line that would not decode: the whole set stands down, the engine reads instead
+    if (ls.some(l => !l)) { VO_REC.lines = null; VO_REC.failed = true; return; }   // a line that would not decode: the whole set stands down, the engine reads instead
     VO_REC.lines = ls; VO_REC.ready = true; window.TRAILER_VO = null;
     const b = document.getElementById('vidVo'); if (b) b.classList.remove('na');
   });
@@ -17559,7 +17599,10 @@ function voPick(kind) {
 // win: the seconds this line has before the next one is due (its shot, less a breath); it is paced to fit
 function voSpeak(text, kind, win, i) {
   if (VO_REC.ready) { voPlayRec(i, win); return; }
-  if (!VO.ok) return;
+  /* The browser's own engine reads the line only when the recorded set is NOT coming (no sidecar, or it failed). While
+     it is still loading, the shot keeps its caption and stays silent: the engine's voice is the robot the user heard
+     on the trailer's first seconds (2026-10-09, "some voices still sound like robots"). */
+  if (!VO.ok || !VO_REC.failed) return;
   const u = new SpeechSynthesisUtterance(text), v = voPick(kind);
   if (v) { u.voice = v; u.lang = v.lang; } else u.lang = 'en-US';
   if (kind === 'nar' && v && v.name !== VO.voice) { VO.voice = v.name; VO.lat = 0.45; VO.cps = 14; }   // a voice not heard before: back to the defaults
@@ -18248,7 +18291,7 @@ const SITE_SIDECARS = Promise.all(SITE_SIDECAR_FILES.map(n => loadSidecar(n, SIT
 /* The game's own sidecars, fetched once the page is up. Each is a plain script tag (so it works from a page opened
    straight off disk, where fetch() is blocked); a missing file resolves as a failure and that model's built
    fallback is used. GAME_LOAD counts them in for the entry gate. */
-const GAME_SIDECAR_FILES = ['npc', 'npc-lo', 'gate', 'hhand', 'vend', 'cooler', 'tank', 'valve', 'bench', 'wreck', 'pad', 'oxy', 'shovel', 'potato', 'pose-salute', 'pose-wave', 'pose-thumbsup', 'pose-float', 'pose-grab', 'dash', 'o2tank', 'chair', 'finale', 'strip', 'ascent'];
+const GAME_SIDECAR_FILES = ['npc', 'npc-lo', 'gate', 'hhand', 'vend', 'cooler', 'tank', 'valve', 'bench', 'wreck', 'pad', 'oxy', 'shovel', 'potato', 'pose-salute', 'pose-wave', 'pose-thumbsup', 'pose-float', 'pose-grab', 'dash', 'o2tank', 'chair', 'finale', 'strip', 'ascent', 'radio'];
 const GAME_LOAD = { done: 0, total: GAME_SIDECAR_FILES.length };
 let GAME_READY = false;
 function loadSidecar(name, count) {   // count: the tally it adds to (the site's, or by default the game's)
@@ -18262,7 +18305,7 @@ function loadSidecar(name, count) {   // count: the tally it adds to (the site's
 const TOUCH_ONLY = !!(window.matchMedia && matchMedia('(hover: none) and (pointer: coarse)').matches);
 let gameSidecarsGo = null;
 const GAME_SIDECARS = new Promise(go => { gameSidecarsGo = go; }).then(() => SITE_SIDECARS).then(() => Promise.all(GAME_SIDECAR_FILES.map(loadSidecar)))
-  .then(() => Promise.all([npcInit(), gateInit(), hhandInit(), vendInit(), coolerInit(), tankInit(), valveInit(), benchInit(), wreckInit(), padInit(), oxyInit(), shovelInit(), potatoInit(), posesInit(), propsInit(), finaleInit(), stripArtInit(), ascArtInit()]))
+  .then(() => Promise.all([npcInit(), gateInit(), hhandInit(), vendInit(), coolerInit(), tankInit(), valveInit(), benchInit(), wreckInit(), padInit(), oxyInit(), shovelInit(), potatoInit(), posesInit(), propsInit(), finaleInit(), stripArtInit(), ascArtInit(), radioArtInit()]))
   .then(rs => rs.every(Boolean), () => false);
 GAME_SIDECARS.then(() => { GAME_READY = true; try { fallRepose(); } catch (e) {} });
 if (!TOUCH_ONLY) gameSidecarsGo();
