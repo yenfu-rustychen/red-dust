@@ -9,6 +9,12 @@
      to Courier New and the system sans when there is no network, so nothing here depends on them. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- the two script hosts three.js comes from: the connections opened while the head is still being read -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<meta name="theme-color" content="#0a0503">
+<!-- a phone's header is this picture (the 3D one is drawn from 8 MB of models), so it is asked for at once -->
+<link rel="preload" as="image" href="mars-crash-hero.jpg" media="(hover: none) and (pointer: coarse)">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap">
 <!-- three.js loads at the top of <body>, under the loading screen (#siteLoad), so the screen paints first -->
 <!-- The website's own models (the astronaut, the hab, the comms array and the first-person hand) load as async scripts
@@ -137,7 +143,7 @@
   #msg.titleHome { justify-content: space-between; }
   #msg.titleView h1 { font-size: 62px; margin-bottom: 2px; }
   #msg.titleView h2 { margin-bottom: 12px; }
-  /* the mission patch (mars-crash-logo.png) beside the title, the pair centred as one lockup */
+  /* the mission patch (mars-crash-logo.webp) beside the title, the pair centred as one lockup */
   #msg .titleBrand { display: flex; align-items: center; justify-content: center; gap: 22px; }
   #msg .titleBrand > div { text-align: left; }
   #msg .titleBrand h2 { margin-bottom: 0; }
@@ -947,7 +953,7 @@
   #site section, #site .chapter, #stage { scroll-margin-top: 84px; }
 
   /* ---- the mission patch ----
-     The game's logo (mars-crash-logo.png beside this page, cut out of its white ground) goes wherever the name is set:
+     The game's logo (mars-crash-logo.webp beside this page, cut out of its white ground) goes wherever the name is set:
      the bar, the header beside the title, the crew badges, the Play section and the foot. If the file is missing each
      image removes itself and the words stand alone, as before. */
   #site img.patch { display: block; filter: drop-shadow(0 6px 18px rgba(0,0,0,0.55)); }
@@ -998,10 +1004,20 @@
   @media (max-width: 720px) { #siteNav .logo img.patch { width: 40px; height: 40px; margin: -8px 0 -8px -2px; } #siteNav .logo { gap: 9px; } #hero .brand { gap: 14px; } }
   @media (max-width: 720px) { #site .chapter { grid-template-columns: 1fr; } #site .chapter .cn { font-size: 56px; margin-bottom: 8px; } #site .chapter .cl a { font-size: 12px; padding: 13px 13px; }   /* a thumb-sized target: 26px tall was too small to tap */
     #timeline .clip figcaption { font-size: 11px; letter-spacing: 1.5px; } }
+  /* phone pass (2026-10-11, "mobile friendly"): the page tabs were 29px tall and the trailer's corner buttons 34px, under a
+     thumb; the machines' notes, the manifest and the captions sat at 6-10px. Thumb-sized targets and a 12px floor for text
+     meant to be read (the patch's stitched back is decoration and stays small). */
+  @media (max-width: 720px) {
+    #siteNav .tab { min-height: 42px; }
+    #vid #vidFs, #vid #vidVo { min-width: 44px; min-height: 44px; }
+    #book p.credit a { display: inline-block; padding: 8px 0; }
+    #site #show small, #site #book figcaption, #site #book p.credit, #site .prof dt, #site .prof dd, #site .prof .role, #site .prof figcaption, #site .prof .badge span, #site .prof .badge b, #site #mars .live, #site #heroLive { font-size: 12px; }
+    #timeline .clip figcaption { font-size: 12px; }
+  }
 </style>
 </head>
 <body>
-<div id="siteLoad" role="status" aria-live="polite"><div class="sl"><img src="mars-crash-logo.png" alt="" onerror="this.remove()"><b>RED DUST</b><small id="slTxt">Loading</small><div class="slBar"><i id="slFill"></i></div></div></div>
+<div id="siteLoad" role="status" aria-live="polite"><div class="sl"><img src="mars-crash-logo.webp" alt="" onerror="this.remove()"><b>RED DUST</b><small id="slTxt">Loading</small><div class="slBar"><i id="slFill"></i></div></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <!-- post-processing (bloom). If these fail to load the game falls back to a plain render. -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
@@ -1020,7 +1036,7 @@
   <canvas id="stars"></canvas>
   <canvas id="dust"></canvas>
   <nav id="siteNav">
-    <button class="logo" id="siteHome" title="Home"><img class="patch" src="mars-crash-logo.png" alt="" onerror="this.remove()">RED DUST</button>
+    <button class="logo" id="siteHome" title="Home"><img class="patch" src="mars-crash-logo.webp" alt="" onerror="this.remove()">RED DUST</button>
     <div class="links">
       <!-- four tabs, four pages: pressing a tab is the only way from one page to another (sitePage) -->
       <div class="tabs" role="tablist" aria-label="The site's pages">
@@ -1043,8 +1059,8 @@
     <canvas id="heroArt" width="1280" height="640"></canvas>
     <div class="live" id="heroLive"><i></i>THE TRAILER · SILENT HERE, WITH SOUND BELOW</div>
     <div class="wrap">
-      <!-- the mission patch beside the title: the game's logo (mars-crash-logo.png beside this page) -->
-      <div class="brand"><img class="patch" src="mars-crash-logo.png" alt="Red Dust mission patch" onerror="this.remove()">
+      <!-- the mission patch beside the title: the game's logo (mars-crash-logo.webp beside this page) -->
+      <div class="brand"><img class="patch" src="mars-crash-logo.webp" alt="Red Dust mission patch" onerror="this.remove()">
         <div><div class="kicker">A browser game</div>
       <h1>RED DUST</h1></div></div>
       <p class="lede">A game based on the story of <b>The Martian</b> by Andy Weir. You are the one they left behind,
@@ -1059,8 +1075,8 @@
            drawBookArt) and Andy Weir, from Gage Skidmore's photo at San Diego Comic-Con 2025 (CC BY-SA 3.0, cropped to head
            and shoulders; credited under the text, and gone without a gap if mars-crash-weir.jpg is missing) -->
       <div class="media bookPair">
-        <figure><img id="bookArt" src="mars-crash-cover.jpg" alt="The Martian by Andy Weir, the book's cover: an astronaut adrift in orange dust"><figcaption>The book · 2014</figcaption></figure>
-        <figure class="author"><img src="mars-crash-weir.jpg" alt="Andy Weir, smiling, in a flat cap and glasses" onerror="this.closest('figure').remove()"><figcaption>Andy Weir</figcaption></figure>
+        <figure><img id="bookArt" src="mars-crash-cover.jpg" loading="lazy" decoding="async" alt="The Martian by Andy Weir, the book's cover: an astronaut adrift in orange dust"><figcaption>The book · 2014</figcaption></figure>
+        <figure class="author"><img src="mars-crash-weir.jpg" loading="lazy" decoding="async" alt="Andy Weir, smiling, in a flat cap and glasses" onerror="this.closest('figure').remove()"><figcaption>Andy Weir</figcaption></figure>
       </div>
       <div>
         <div class="label">Based on The Martian</div>
@@ -1112,7 +1128,7 @@
            again), throwing a puff of red dust; the title answers with a pulse. Enter or Space does the same. -->
       <div class="patchToy" id="patchToy" role="button" tabindex="0" aria-label="Flip the mission patch" title="Flip the patch">
         <div class="ptStage"><div class="ptCoin">
-          <img class="patch playPatch ptFront" src="mars-crash-logo.png" alt="Red Dust mission patch" onerror="this.closest('.ptStage').remove()">
+          <img class="patch playPatch ptFront" src="mars-crash-logo.webp" alt="Red Dust mission patch" onerror="this.closest('.ptStage').remove()">
           <div class="ptBack"><span class="k">Ares III</span><b>BRING<br>HIM HOME</b><em>Sol 561</em><small>Marc · Mike</small></div>
         </div></div>
         <h2>RED DUST</h2>
@@ -1140,40 +1156,40 @@
       <div id="timeline">
         <div class="ev"><div class="sol">Sol 1 · descent</div><h3>Crash landing</h3>
           <p>The thrusters are failing on the way down. Ease her through the thin air onto the pad and settle slow and level. A hard landing is the end of the story on the first page.</p>
-          <figure class="clip"><video muted loop playsinline preload="none" poster="mars-crash-clip-01.jpg" src="mars-crash-clip-01.mp4"></video><figcaption>Easing her down onto the pad</figcaption></figure></div>
+          <figure class="clip"><video muted loop playsinline preload="none" data-poster="mars-crash-clip-01.jpg" src="mars-crash-clip-01.mp4"></video><figcaption>Easing her down onto the pad</figcaption></figure></div>
         <div class="ev"><div class="sol">Sol 1 · surface</div><h3>Cross to the colony</h3>
           <p>The wreck is not where the base is. Six hundred metres of canyon, mesa and open plain on foot, on a tank of oxygen that is already going down, with a chasm in the middle that the parkour is the only way over.</p>
-          <figure class="clip"><video muted loop playsinline preload="none" poster="mars-crash-clip-02.jpg" src="mars-crash-clip-02.mp4"></video><figcaption>Parkour over the mesas</figcaption></figure></div>
+          <figure class="clip"><video muted loop playsinline preload="none" data-poster="mars-crash-clip-02.jpg" src="mars-crash-clip-02.mp4"></video><figcaption>Parkour over the mesas</figcaption></figure></div>
         <div class="ev"><div class="sol">Sol 6 · the hab</div><h3>Establish the farm</h3>
           <p>Thirty days of food and four years to the next ship. Dig regolith, carry it in through the airlock, water it, and plant the only thing on the planet that will grow: potatoes. Then keep the hab alive around them.</p>
-          <figure class="clip"><video muted loop playsinline preload="none" poster="mars-crash-clip-03.jpg" src="mars-crash-clip-03.mp4"></video><figcaption>The first potatoes coming up</figcaption></figure></div>
+          <figure class="clip"><video muted loop playsinline preload="none" data-poster="mars-crash-clip-03.jpg" src="mars-crash-clip-03.mp4"></video><figcaption>The first potatoes coming up</figcaption></figure></div>
         <div class="ev"><div class="sol">Sol 70 · the plain</div><h3>The rover run</h3>
           <p>The comms tower is out past the gate line. Repair the rover, then race the gates against the clock — boost pads, ramps, nitro — to get an antenna up and a signal out. Then race them back.</p>
-          <figure class="clip"><video muted loop playsinline preload="none" poster="mars-crash-clip-04.jpg" src="mars-crash-clip-04.mp4"></video><figcaption>Racing the gates out to the tower</figcaption></figure></div>
+          <figure class="clip"><video muted loop playsinline preload="none" data-poster="mars-crash-clip-04.jpg" src="mars-crash-clip-04.mp4"></video><figcaption>Racing the gates out to the tower</figcaption></figure></div>
         <div class="ev"><div class="sol">Earth · Houston</div><h3>Mission control</h3>
           <p>The signal lands. You are on the other side of it now, in a supply station that has to build a resupply rocket in a hurry — and watch it come apart on ascent, live, at T+02:14.</p>
-          <figure class="clip"><video muted loop playsinline preload="none" poster="mars-crash-clip-05.jpg" src="mars-crash-clip-05.mp4"></video><figcaption>Mission control, from the floor</figcaption></figure></div>
+          <figure class="clip"><video muted loop playsinline preload="none" data-poster="mars-crash-clip-05.jpg" src="mars-crash-clip-05.mp4"></video><figcaption>Mission control, from the floor</figcaption></figure></div>
         <div class="ev"><div class="sol">Earth · the office</div><h3>The appeal</h3>
           <p>There is no budget and no booster for another try. There is a plan that could bring him home, and one Administrator who has to be talked into it. Choose your words.</p>
-          <figure class="clip"><video muted loop playsinline preload="none" poster="mars-crash-clip-06.jpg" src="mars-crash-clip-06.mp4"></video><figcaption>Walking in to see the Administrator</figcaption></figure></div>
+          <figure class="clip"><video muted loop playsinline preload="none" data-poster="mars-crash-clip-06.jpg" src="mars-crash-clip-06.mp4"></video><figcaption>Walking in to see the Administrator</figcaption></figure></div>
         <div class="ev"><div class="sol">Earth · the bay</div><h3>Flight prep</h3>
           <p>A second rocket, built and kept green for two minutes straight while its systems fault one after another. Run to the red station. Hold it together.</p>
-          <figure class="clip"><video muted loop playsinline preload="none" poster="mars-crash-clip-07.jpg" src="mars-crash-clip-07.mp4"></video><figcaption>Running to each fault and holding it</figcaption></figure></div>
+          <figure class="clip"><video muted loop playsinline preload="none" data-poster="mars-crash-clip-07.jpg" src="mars-crash-clip-07.mp4"></video><figcaption>Running to each fault and holding it</figcaption></figure></div>
         <div class="ev"><div class="sol">Transit</div><h3>The asteroid run</h3>
           <p>The rescue ship threads the belt on the way out: steer, fire, dodge. Hull is the only resource, and Mars is a growing dot at the end of it.</p>
-          <figure class="clip"><video muted loop playsinline preload="none" poster="mars-crash-clip-08.jpg" src="mars-crash-clip-08.mp4"></video><figcaption>Threading the asteroid belt</figcaption></figure></div>
+          <figure class="clip"><video muted loop playsinline preload="none" data-poster="mars-crash-clip-08.jpg" src="mars-crash-clip-08.mp4"></video><figcaption>Threading the asteroid belt</figcaption></figure></div>
         <div class="ev"><div class="sol">Sol 549 · the surface</div><h3>Rescue</h3>
-          <p>Touchdown, and the same canyon from the other direction — from the hab you left, to the ship that has come for you, with someone waving from beside it.</p>
-          <figure class="clip"><video muted loop playsinline preload="none" poster="mars-crash-clip-09.jpg" src="mars-crash-clip-09.mp4"></video><figcaption>Across the canyon to the ship</figcaption></figure></div>
+          <p>Touchdown, and the same canyon from the other direction — from the hab you left, to the ship that has come for you.</p>
+          <figure class="clip"><video muted loop playsinline preload="none" data-poster="mars-crash-clip-09.jpg" src="mars-crash-clip-09.mp4"></video><figcaption>Across the canyon to the ship</figcaption></figure></div>
         <div class="ev"><div class="sol">Sol 561 · aboard</div><h3>Strip the ship</h3>
           <p>She is too heavy to make orbit. Sit in the couch and throw out everything that is not holding the ship together or keeping you alive — the window, the water, the spare seats — until the numbers close.</p>
-          <figure class="clip"><video muted loop playsinline preload="none" poster="mars-crash-clip-10.jpg" src="mars-crash-clip-10.mp4"></video><figcaption>Throwing out everything not bolted down</figcaption></figure></div>
+          <figure class="clip"><video muted loop playsinline preload="none" data-poster="mars-crash-clip-10.jpg" src="mars-crash-clip-10.mp4"></video><figcaption>Throwing out everything not bolted down</figcaption></figure></div>
         <div class="ev"><div class="sol">Sol 561 · T-00:10</div><h3>Launch</h3>
           <p>Sixteen seconds from the pilot's couch: the count, the hold-down, max-Q with the canvas you taped over the window thundering, staging, and then the engine cuts and everything loose in the cabin rises.</p>
-          <figure class="clip"><video muted loop playsinline preload="none" poster="mars-crash-clip-11.jpg" src="mars-crash-clip-11.mp4"></video><figcaption>Riding it up off Mars</figcaption></figure></div>
+          <figure class="clip"><video muted loop playsinline preload="none" data-poster="mars-crash-clip-11.jpg" src="mars-crash-clip-11.mp4"></video><figcaption>Riding it up off Mars</figcaption></figure></div>
         <div class="ev"><div class="sol">Orbit</div><h3>Rendezvous</h3>
           <p>Blow the hatch. Tumble. Kill the spin. A light out by the shuttle turns out to be a person on a manoeuvring unit, and Hayes clips a tether to your chest. Then the two of you fly to the lit doorway together.</p>
-          <figure class="clip"><video muted loop playsinline preload="none" poster="mars-crash-clip-12.jpg" src="mars-crash-clip-12.mp4"></video><figcaption>The spacewalk to the shuttle</figcaption></figure></div>
+          <figure class="clip"><video muted loop playsinline preload="none" data-poster="mars-crash-clip-12.jpg" src="mars-crash-clip-12.mp4"></video><figcaption>The spacewalk to the shuttle</figcaption></figure></div>
       </div>
     </div>
   </section>
@@ -1426,9 +1442,9 @@
       <!-- one badge for the two of them: their photo beside who does what, the loadout side by side -->
       <div id="crew" class="one">
         <article class="prof duo">
-          <header class="badge"><span><img class="patch" src="mars-crash-logo.png" alt="" onerror="this.remove()"><i class="bdRd">Red Dust · </i>crew manifest</span><b>No. 01 – 02</b></header>
+          <header class="badge"><span><img class="patch" src="mars-crash-logo.webp" alt="" onerror="this.remove()"><i class="bdRd">Red Dust · </i>crew manifest</span><b>No. 01 – 02</b></header>
           <div class="dbody">
-            <figure class="photo"><div class="frame"><img src="mars-crash-editors.jpg" alt="Marc and Mike at a table with a chocolate cake and one lit candle" onerror="this.closest('figure').remove()"><i class="cnr"></i></div>
+            <figure class="photo"><div class="frame"><img src="mars-crash-editors.jpg" loading="lazy" decoding="async" alt="Marc and Mike at a table with a chocolate cake and one lit candle" onerror="this.closest('figure').remove()"><i class="cnr"></i></div>
               <figcaption><span class="lamp"></span>Crew photo · <em>Marc &amp; Mike</em></figcaption></figure>
             <div class="info">
               <h3>Marc <i>&amp;</i> Mike</h3>
@@ -1500,7 +1516,7 @@
 
   </div>
 
-  <footer id="siteFoot"><span class="fl"><img class="patch" src="mars-crash-logo.png" alt="" onerror="this.remove()">RED DUST</span><span class="fr">a game after Andy Weir's The Martian · one page, no engine<small>made with Claude Code and Meshy AI</small></span></footer>
+  <footer id="siteFoot"><span class="fl"><img class="patch" src="mars-crash-logo.webp" alt="" onerror="this.remove()">RED DUST</span><span class="fr">a game after Andy Weir's The Martian · one page, no engine<small>made with Claude Code and Meshy AI</small></span></footer>
 </div>
 
 <canvas id="three"></canvas>
@@ -5112,13 +5128,7 @@ function buildExtractionShip(scene, x, z) {
   const tip = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 12), beaconMat); tip.position.set(0, BELLY + 0.725 * S + 9.5, -2); grp.add(tip);
   WALK.beacon.push({ mesh: tip, mat: beaconMat, base: 3, speed: 3 });
   grp.add(new THREE.PointLight(0x8fd8ff, 1.6, 90, 2).translateY(16));
-  // a suited crewmate waiting by the rescue ship
-  // the same baked astronaut as every other suit in the game, in lunar white, one arm up and waving you in
-  const crew = buildSuitFigure('wave'); suitPaint(crew, SUITS[3]);
-  crew.position.set(8, 0.2, 5); crew.rotation.y = -0.7;
-  crew.traverse(o => { if (o.isMesh) o.castShadow = true; });
-  crew.add(contactShadow(1.4, 0.5).translateY(-0.18));
-  grp.add(crew);
+  // (the waving crewmate who stood by the ship's right leg is gone: user, 2026-10-12, "remove this guy")
   scene.add(grp);
   return grp;
 }
@@ -15752,7 +15762,7 @@ function pauseBuild() {
   document.head.appendChild(st);
   const el = document.createElement('div'); el.id = 'pauseMenu'; el.dataset.view = 'main';
   el.innerHTML = `<div class="card">
-    <div class="v vm"><img class="pmPatch" src="mars-crash-logo.png" alt="" onerror="this.remove()"><div class="k">Mission paused</div><h2>PAUSED</h2><div class="ph" id="pmPhase"></div>
+    <div class="v vm"><img class="pmPatch" src="mars-crash-logo.webp" alt="" onerror="this.remove()"><div class="k">Mission paused</div><h2>PAUSED</h2><div class="ph" id="pmPhase"></div>
       <div class="btns"><button class="pri" id="pmResume">${icon('play')}RESUME</button><button id="pmRestart">${icon('restart')}RESTART THIS PHASE</button><button id="pmSettings">${icon('gear')}SETTINGS</button><button id="pmMenu">${icon('back')}MAIN MENU</button></div>
       <div class="hint">Esc to resume</div></div>
     <div class="v vs"><div class="k">Settings</div>
@@ -15929,12 +15939,46 @@ function touchBuild() {
     #touch .sys button{pointer-events:auto;touch-action:none;font:600 10px var(--mono);letter-spacing:2px;color:#e8dcc8;background:rgba(12,10,8,.55);border:1px solid rgba(255,255,255,.22);border-radius:16px;padding:9px 13px;min-height:34px;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);cursor:pointer}
     #touch .sys button.lit{background:rgba(255,138,60,.85);color:#1a0d06}
     @media (max-width:520px){#touch .s4{right:calc(26px + env(safe-area-inset-right));bottom:calc(222px + env(safe-area-inset-bottom))}}   /* upright: the fifth button stacks above the fourth, clear of the pills (after the slot rules, so it wins) */
+    /* A phone's screen, decluttered (2026-10-12, "mobile game ui clutters too much of screen"): on a phone held sideways
+       (or upright) the status card took a third of the view in the hab, the banner repeated it, the tutorial card sat over
+       the stick and five 64-86 px buttons and two text pills walled off the right and the bottom. Here: a smaller, lighter
+       status card without the NEXT STEP label, a small banner that steps aside while a tutorial card is up, the card at the
+       top centre (short: the line and its controls), the buttons about 15% smaller and see-through, and the two pills as
+       round icons. Tablets keep the full size. */
+    @media (max-height:520px), (max-width:520px) {
+      body.touchctl #hud{font-size:9.5px;line-height:1.35;padding:4px 7px 5px;max-width:min(300px,44vw);background:rgba(10,6,4,.38);box-shadow:none}
+      body.touchctl #hudPhase{font-size:8px;letter-spacing:2px;padding-bottom:2px;margin-bottom:3px}
+      body.touchctl #hud .bar{width:64px;height:5px;margin:0 4px}
+      body.touchctl #hud .chips{gap:2px 3px;margin-top:2px} body.touchctl #hud .chip{font-size:9.5px;padding:0 4px} body.touchctl #hud .chip i{font-size:7px}
+      body.touchctl #hudLine3:not(:empty){font-size:10.5px;line-height:1.3;padding:3px 6px;margin-top:4px} body.touchctl #hudLine3 .k{display:none}
+      body.touchctl #hud:not(.hidden) ~ #banner{font-size:10px;line-height:1.35;max-width:34vw;top:8px;right:10px;opacity:.85;transition:opacity .3s}
+      body.touchctl.tutup #hud:not(.hidden) ~ #banner{opacity:0}
+      body.touchctl #tutBox .g, body.touchctl #tutBox .f{display:none} body.touchctl #tutBox .t{font-size:11px;line-height:1.35}
+      #touch .tb{width:56px;height:56px;background:rgba(12,10,8,.36);border-color:rgba(255,210,74,.42);box-shadow:0 2px 8px rgba(0,0,0,.3)}
+      #touch .tb b{font-size:20px} #touch .tb.w b{font-size:10px} #touch .tb i{font-size:7px;margin-top:2px}
+      #touch .tb.big{width:74px;height:74px} #touch .tb.big b{font-size:28px} #touch .tb.big.w b{font-size:13px}
+      #touch .s0{right:calc(18px + env(safe-area-inset-right));bottom:calc(18px + env(safe-area-inset-bottom))}
+      #touch .s1{right:calc(102px + env(safe-area-inset-right));bottom:calc(10px + env(safe-area-inset-bottom))}
+      #touch .s2{right:calc(92px + env(safe-area-inset-right));bottom:calc(76px + env(safe-area-inset-bottom))}
+      #touch .s3{right:calc(22px + env(safe-area-inset-right));bottom:calc(102px + env(safe-area-inset-bottom))}
+      #touch .s4{right:calc(164px + env(safe-area-inset-right));bottom:calc(30px + env(safe-area-inset-bottom))}
+      #touch .sys{bottom:calc(8px + env(safe-area-inset-bottom));gap:10px}
+      #touch .sys button{width:40px;height:40px;min-height:0;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(12,10,8,.4)}
+      #touch .sys button span{display:none}
+      #touch .stick{border-color:rgba(255,255,255,.16);background:rgba(10,8,6,.2)} #touch .stick i{width:48px;height:48px;margin:-24px 0 0 -24px;background:rgba(255,210,74,.7)}
+    }
+    @media (max-height:520px) and (orientation:landscape) {   /* sideways: the tutorial card leaves the stick's corner for the top centre */
+      body.touchctl #tutBox:not(.desc){left:57%;bottom:auto;top:8px;width:min(250px,30vw);transform:translate(-50%,-4px)}   /* a little right of centre: the hab's status card is the widest */
+      body.touchctl #tutBox.on:not(.desc){transform:translate(-50%,0)}
+    }
+    @media (max-width:520px){#touch .s4{right:calc(22px + env(safe-area-inset-right));bottom:calc(168px + env(safe-area-inset-bottom))}}   /* upright, at the smaller size: above the fourth again */
+    @media (max-width:520px) and (orientation:portrait){body.touchctl #tutBox:not(.desc){bottom:auto;top:42%}}   /* upright: the card in the open middle, not under the stick */
     @media (prefers-reduced-motion:reduce){#touch .tb{transition:none}}`;
   document.head.appendChild(st);
   const el = document.createElement('div'); el.id = 'touch';
   el.innerHTML = '<div class="tz mv"><div class="stick"><i></i></div></div><div class="tz lk"></div>'
     + [0, 1, 2, 3, 4].map(i => `<div class="tb s${i}" role="button"><b></b><i></i></div>`).join('')
-    + '<div class="sys"><button data-sys="pause">' + icon('pause', 'sm') + ' PAUSE</button><button data-sys="obj">' + icon('list', 'sm') + ' OBJECTIVE</button></div>';
+    + '<div class="sys"><button data-sys="pause" aria-label="Pause">' + icon('pause', 'sm') + '<span> PAUSE</span></button><button data-sys="obj" aria-label="Objective">' + icon('list', 'sm') + '<span> OBJECTIVE</span></button></div>';
   document.body.appendChild(el); TOUCH.el = el;
   const mv = TOUCH.mv = el.querySelector('.tz.mv'), lk = TOUCH.lk = el.querySelector('.tz.lk');
   TOUCH.stickEl = el.querySelector('.stick'); TOUCH.knob = TOUCH.stickEl.firstChild; TOUCH.btn = [...el.querySelectorAll('.tb')]; TOUCH.sysEl = el.querySelector('.sys');
@@ -16069,7 +16113,8 @@ const TUT_TIPS = {
   repair:   () => ['Suit repair', ['CLICK'], 'Click each tear the moment its ring meets the cyan circle.', 'Seal every tear in your suit.'],
   base:     () => ['The hab', [...tutMove(), tutK('use'), tutK('drop')], `${tutK('use')} picks things up and uses them, ${tutK('drop')} puts them down.`, 'Grow food. The NEXT STEP box (top left) always says what to do.'],
   wiretask: () => ['Rewiring', ['DRAG'], 'Drag each wire to the end of the same colour.', 'Connect every wire to fix the rover.'],
-  driving:  () => ['The rover', [tutK('forward'), tutK('back'), tutK('left'), tutK('right'), tutK('sprint')], `${tutK('forward')} and ${tutK('back')} drive, ${tutK('left')} and ${tutK('right')} steer, ${tutK('sprint')} for nitro.`, 'Drive through the green gates before the clock runs out.'],
+  driving:  () => TOUCH.on ? ['The rover', ['LEFT STICK', 'NITRO'], 'The stick drives and steers, NITRO boosts.', 'Drive through the green gates before the clock runs out.']   // on a phone: the one stick and the NITRO button by their own names
+    : ['The rover', [tutK('forward'), tutK('back'), tutK('left'), tutK('right'), tutK('sprint')], `${tutK('forward')} and ${tutK('back')} drive, ${tutK('left')} and ${tutK('right')} steer, ${tutK('sprint')} for nitro.`, 'Drive through the green gates before the clock runs out.'],
   houston:  () => ['Mission control', [...tutMove(), tutK('use')], `Walk, and press ${tutK('use')} at whatever the floating arrow points to.`, 'Load the crates, fuel the rocket, pick the parts and launch.'],
   maintain: () => ['Launch hold', [...tutMove(), tutK('use')], `Run to any station that turns red and hold ${tutK('use')} to fix it.`, 'Keep the rocket green until the countdown ends.'],
   space:    () => ['The asteroid run', [...tutMove(), tutK('jump')], `Steer, and ${tutK('jump')} or click to fire.`, 'Shoot or dodge the rocks. If your hull reaches zero, it is over.'],
@@ -16103,8 +16148,8 @@ function tutBuild() {
   document.head.appendChild(st);
   TUT.el = document.createElement('div'); TUT.el.id = 'tutBox'; TUT.el.setAttribute('role', 'status'); document.body.appendChild(TUT.el);
 }
-function tutShow(html) { tutBuild(); if (TOUCH.on) html = html.replace(/\bMOUSE\b/g, 'DRAG RIGHT').replace(/\bCLICK\b/g, 'TAP').replace(/\bclick\b/g, 'tap').replace(/\blook around\b/, 'drag the right side to look'); if (TUT.el._h !== html) { TUT.el._h = html; TUT.el.innerHTML = html; } TUT.el.classList.add('on'); }
-function tutHide() { if (TUT.el) TUT.el.classList.remove('on'); }
+function tutShow(html) { tutBuild(); if (TOUCH.on) html = html.replace(/\bMOUSE\b/g, 'DRAG RIGHT').replace(/\bCLICK\b/g, 'TAP').replace(/\bclick\b/g, 'tap').replace(/\blook around\b/, 'drag the right side to look'); if (TUT.el._h !== html) { TUT.el._h = html; TUT.el.innerHTML = html; } TUT.el.classList.add('on'); document.body.classList.add('tutup'); }
+function tutHide() { if (TUT.el) TUT.el.classList.remove('on'); document.body.classList.remove('tutup'); }   // tutup: on a phone the banner steps aside while a card is up
 const tutKeys = ks => '<div class="keys">' + ks.map(k => '<kbd>' + k + '</kbd>').join('') + '</div>';
 function tutCard(S) {
   const c = TUT_TIPS[S]();
@@ -17112,7 +17157,7 @@ function showTheEnd() {
       <div class="stats"><div>HULL AT DOCKING<b>${FINALE.hull}%</b></div><div>ASTEROIDS BLASTED<b>${(typeof ACH !== 'undefined' && ACH.rocks) || 0}</b></div><div>ACHIEVEMENTS<b>${nAch} / ${tAch}</b></div></div>
       ${score}
       <div class="roll"><div>
-        <img src="mars-crash-logo.png" alt="" onerror="this.remove()"><em>RED DUST</em><br><br>PICTURE AND CODE · MARC<br>TRAILER AND STORY · MIKE<br><br>BASED ON <em>THE MARTIAN</em> BY ANDY WEIR<br><br>MADE WITH CLAUDE CODE AND MESHY AI<br><br>THANKS FOR BRINGING HIM HOME
+        <img src="mars-crash-logo.webp" alt="" onerror="this.remove()"><em>RED DUST</em><br><br>PICTURE AND CODE · MARC<br>TRAILER AND STORY · MIKE<br><br>BASED ON <em>THE MARTIAN</em> BY ANDY WEIR<br><br>MADE WITH CLAUDE CODE AND MESHY AI<br><br>THANKS FOR BRINGING HIM HOME
       </div></div>
       <button id="endMenu" style="margin-top:20px;font:600 14px var(--mono);letter-spacing:3px;color:#1a0d06;background:#ff8a3c;border:none;border-radius:6px;padding:12px 28px;cursor:pointer;box-shadow:0 0 24px rgba(255,120,40,.35)">${icon('back', 'sm')} MAIN MENU</button>
     </div>`;
@@ -17371,7 +17416,7 @@ function showMainMenu() {
   titleChrome(true, true);
   // two blocks, so space-between pins the title to the top and the buttons to the foot
   msg.innerHTML = `
-    <div class="titleBrand"><img class="tPatch" src="mars-crash-logo.png" alt="" onerror="this.remove()"><div><h1>RED DUST</h1><h2>Crash Landing on Mars</h2></div></div>
+    <div class="titleBrand"><img class="tPatch" src="mars-crash-logo.webp" alt="" onerror="this.remove()"><div><h1>RED DUST</h1><h2>Crash Landing on Mars</h2></div></div>
     <div>
       <button id="startBtn" class="textBtn playText"><span class="tri">${icon('play')}</span>PLAY</button>
       <div class="touchMsg">Touch controls: left thumb moves, right thumb looks. Hold your phone sideways.</div>
@@ -17553,7 +17598,8 @@ function heroSnapshot(g, W, H) {
 function drawHeroArt() {
   const c = document.getElementById('heroArt'); if (!c) return; const g = c.getContext('2d'), W = c.width, H = c.height;
   g.clearRect(0, 0, W, H);
-  if (heroSnapshot(g, W, H)) return;                                   // the game's own frame; below is the fallback
+  if (TOUCH_ONLY) { if (heroPhoneArt(c, g)) return; }                  // a phone: the same frame as a picture, not drawn from 8 MB of models
+  else if (heroSnapshot(g, W, H)) return;                              // the game's own frame; below is the fallback
   // the fallback is laid out in a 1200x600 space; scale it to whatever the canvas actually is
   g.save(); g.scale(W / 1200, H / 600); const w = 1200, h = 600;
   const sun = g.createRadialGradient(300, 280, 10, 300, 280, 260); sun.addColorStop(0, 'rgba(255,214,150,0.55)'); sun.addColorStop(1, 'rgba(255,140,60,0)');
@@ -17570,6 +17616,16 @@ function drawHeroArt() {
   _rover(g, 430, 430, 0.9);
   g.fillStyle = '#e6e8ee'; g.fillRect(560, 396, 10, 30); g.beginPath(); g.arc(565, 390, 8, 0, 7); g.fill();   // you
   g.restore();
+}
+/* A phone's header: mars-crash-hero.jpg, drawHeroArt's frame as rendered from the real models (heroexport.js), preloaded in
+   the head. Painted the moment it is in (and kept as the trailer's first picture); until then, or if the file is missing,
+   the drawn fallback below stands in. */
+function heroPhoneArt(c, g) {
+  const img = HERO.img || (HERO.img = new Image());
+  const paint = () => { if (state !== 'site') return; g.clearRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height); heroKeepStill(); };
+  if (img.complete && img.naturalWidth) { paint(); return true; }
+  if (!img.src) { img.decoding = 'async'; img.onload = paint; img.src = 'mars-crash-hero.jpg'; }
+  return false;
 }
 // the book's panel is the real cover, an image beside this page; if it fails to load, swap in a canvas and draw
 // a typographic stand-in in the site's own palette
@@ -17943,6 +17999,10 @@ function vidBuildPlates(onDone, sync) {
   VID.building = true;
   const run = () => {
     if (VID.plates !== P) { VID.building = false; done(); return; }   // dropped meanwhile (a retake started over): this build stops here
+    /* The page moved on between steps (the game was entered in this tab): stop here and drop the half-built set. Each step
+       ends by putting `state` back to what it was when the build began, so going on would have pulled the game back to
+       the website a step later. The set is built again the next time the trailer is wanted. */
+    if (state !== saved.state) { VID.building = false; VID.plates = null; return; }
     if (i >= steps.length) { VID.building = false; if (HERO.visible) heroStart(); done(); return; }   // hand the diorama back to the header
     prep(); try { steps[i++](); } catch (e) { console.warn('trailer plates:', e); } finally { restore(); }
     if (sync) run(); else setTimeout(run, 0);
@@ -17975,7 +18035,7 @@ function heroFrame(now) {
   try { vidFrame(HERO.t, { canvas: c, plain: true }); HERO.fails = 0; } catch (e) { if (++HERO.fails > 3) heroStop(); }
 }
 function heroStart() {
-  if (HERO.on || state !== 'site') return;
+  if (HERO.on || state !== 'site' || TOUCH_ONLY) return;      // a phone keeps the header still: the trailer's footage behind it cost a frame loop and the whole trailer built at load
   HERO.on = true; HERO.last = performance.now(); HERO.raf = requestAnimationFrame(heroFrame);
   const tag = document.getElementById('heroLive'); if (tag) tag.classList.add('on');
 }
@@ -18050,9 +18110,15 @@ function siteMotion() {
   // wait for a click); a click pauses one and it stays paused until clicked again. A clip whose files did not
   // travel with the page is taken out rather than left as an empty box.
   const clips = [...document.querySelectorAll('#timeline .clip')];
+  /* The posters are named in data-poster and fetched only as a clip comes within a screen or so of view (all twelve
+     used to load with the page, half a megabyte a phone paid for on the home page). The same moment checks the file
+     is there, and takes the clip out if it is not. */
+  const posterIn = fig => { const v = fig.querySelector('video'), src = v.dataset.poster; if (!src || v.getAttribute('poster')) return;
+    const probe = new Image(); probe.onerror = () => fig.remove(); probe.onload = () => { v.poster = src; }; probe.src = src; };
+  if ('IntersectionObserver' in window) { const po = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { po.unobserve(e.target); posterIn(e.target); } }, { rootMargin: '600px 0px' }); clips.forEach(f => po.observe(f)); }
+  else clips.forEach(posterIn);
   clips.forEach(fig => {
-    const v = fig.querySelector('video'), probe = new Image();
-    probe.onerror = () => fig.remove(); probe.src = v.getAttribute('poster');
+    const v = fig.querySelector('video');
     const sync = () => fig.classList.toggle('paused', v.paused);
     v.addEventListener('play', sync); v.addEventListener('pause', sync);
     v.addEventListener('error', () => fig.classList.add('dead'));
@@ -18100,7 +18166,8 @@ function siteMotion() {
   // dust: a hundred and twenty warm motes drifting up through the page
   if (!reduced) {
     DUST.c = document.getElementById('dust'); DUST.g = DUST.c.getContext('2d');
-    for (let i = 0; i < 120; i++) DUST.p.push({ x: Math.random() * innerWidth, y: Math.random() * innerHeight, vx: (Math.random() - 0.3) * 0.18, vy: -(0.08 + Math.random() * 0.22),
+    // fewer on a phone: the layer redraws the whole screen every frame
+    for (let i = 0, n = TOUCH_ONLY ? 45 : 120; i < n; i++) DUST.p.push({ x: Math.random() * innerWidth, y: Math.random() * innerHeight, vx: (Math.random() - 0.3) * 0.18, vy: -(0.08 + Math.random() * 0.22),
       r: 0.6 + Math.random() * 1.6, a: 0.08 + Math.random() * 0.22, t: Math.random() * 6, w: 0.004 + Math.random() * 0.01 });
     DUST.raf = requestAnimationFrame(dustFrame);
   }
@@ -18112,7 +18179,7 @@ function siteMotion() {
   // easter egg: the suits fall down the empty side of the editors' introduction while it is on screen
   if (!reduced && 'IntersectionObserver' in window && document.getElementById('suitFall')) {
     new IntersectionObserver(es => { for (const e of es) {
-      if (e.isIntersecting) { if (!FALL.built) setTimeout(fallBuild, 80); FALL.on = true; if (!FALL.raf) FALL.raf = requestAnimationFrame(fallFrame); }
+      if (e.isIntersecting) { if (!FALL.built) SITE_SIDECARS_LATE.then(() => setTimeout(fallBuild, 80)); FALL.on = true; if (!FALL.raf) FALL.raf = requestAnimationFrame(fallFrame); }   // built from the real suits: on a phone they may still be on the way
       else FALL.on = false;
     } }, { threshold: 0.02 }).observe(document.getElementById('suitFall'));
   }
@@ -19445,9 +19512,13 @@ function patchDust(host, n) {
 }
 function siteInit() {
   state = 'site';
-  drawHeroArt(); heroKeepStill(); drawCodeArt(); drawBookArt(); drawNasa(); kbdWire(); dashInit(); drawCrew(); patchToyWire(); stageInit(); showInit();
-  // the trailer plays in the header, so its plates are built a moment after load rather than on the first press of Play
-  setTimeout(() => { if (!VID.plates && state === 'site' && !VID.building) { vidBuildPlates(); } }, 1200);
+  drawHeroArt(); heroKeepStill(); drawCodeArt(); drawBookArt(); drawNasa(); kbdWire(); dashInit(); drawCrew(); patchToyWire();   // the models page's views: modelsPageInit, on its first opening
+  // the trailer plays in the header, so its plates are built a moment after load rather than on the first press of Play;
+  // a phone (whose header stays a still) builds them only as the player comes near, once its models are in
+  if (!TOUCH_ONLY) setTimeout(() => { if (!VID.plates && state === 'site' && !VID.building) { vidBuildPlates(); } }, 1200);
+  else { const pv = document.getElementById('vid');
+    const go = () => SITE_SIDECARS_LATE.then(() => { if (!VID.plates && state === 'site' && !VID.building) vidBuildPlates(() => { if (!VID.on) vidPoster(); }); });
+    if (pv && 'IntersectionObserver' in window) { const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { io.disconnect(); go(); } }, { rootMargin: '400px 0px' }); io.observe(pv); } }
   /* Those canvases draw at boot, usually before the web fonts have arrived, so their text goes out in
      the fallback face. Once the fonts are in, redraw the ones that carry text — but never over a real
      frame: a trailer that has played keeps its frame. Without a network the load resolves empty and nothing is redrawn. */
@@ -19501,8 +19572,17 @@ function siteInit() {
    the page that holds it and lands on the section. */
 const SITE_PAGES = ['home', 'how-to-play', 'models-code', 'creators'];
 // how: 'push' a history step, 'replace' the current one, or leave the address alone (at boot, where #game may be in it)
+/* The models page's eight WebGL views (the suit stage and the six machines) are made the first time the page is opened,
+   once the site's models are in, not at boot: every visit used to pay for seven extra WebGL contexts and six scenes it
+   might never look at, and a phone carries the memory of each. */
+const MODELS_PAGE = { ready: false };
+function modelsPageInit() {
+  if (MODELS_PAGE.ready || state !== 'site') return; MODELS_PAGE.ready = true;
+  SITE_SIDECARS_LATE.then(() => { stageInit(); showInit(); });
+}
 function sitePage(key, target, how) {
   if (SITE_PAGES.indexOf(key) < 0) key = 'home';
+  if (key === 'models-code') modelsPageInit();
   for (const p of document.querySelectorAll('#site .page')) p.classList.toggle('on', p.dataset.page === key);
   for (const t of document.querySelectorAll('#siteNav .tab')) { const on = t.dataset.page === key; t.classList.toggle('on', on); t.setAttribute('aria-selected', on ? 'true' : 'false'); }
   if (target) target.scrollIntoView({ block: 'start', behavior: 'instant' }); else window.scrollTo({ top: 0, behavior: 'instant' });
@@ -19586,23 +19666,28 @@ function boot() {
 // a touch-only device (a phone or tablet: no hover, a coarse pointer) gets a lighter site, and the game's models only on Play
 const TOUCH_ONLY = !!(window.matchMedia && matchMedia('(hover: none) and (pointer: coarse)').matches);
 if (TOUCH_ONLY) document.body.classList.add('touchsite');   // the site's controls section shows the touch layer's cards instead of the keyboard's
-/* The site's own models. On a phone only the two the header's picture is made of hold the loading screen (8 MB); the dish and
-   the glove (2.6 MB) follow behind it and the header is retaken when they land (2026-10-09, "optimize for mobile"). */
-const SITE_SIDECAR_FILES = TOUCH_ONLY ? ['astronaut', 'hab'] : ['astronaut', 'hab', 'radar', 'hand'], SITE_SIDECAR_LATE = TOUCH_ONLY ? ['radar', 'hand'] : [];
+/* The site's own models. A phone waits for none of them (2026-10-11, "make it load faster for mobile"): its header is the
+   picture mars-crash-hero.jpg (50 KB), the frame drawHeroArt makes from the astronaut and the hab, so the page is up as soon
+   as three.js is. All four (10.6 MB) are fetched quietly once the page has finished loading, for the models page, the
+   falling suits and the game. Before, a phone held the loading screen for the astronaut and the hab (8 MB). */
+const SITE_SIDECAR_FILES = TOUCH_ONLY ? [] : ['astronaut', 'hab', 'radar', 'hand'], SITE_SIDECAR_LATE = TOUCH_ONLY ? ['astronaut', 'hab', 'radar', 'hand'] : [];
 const SITE_LOAD = { done: 0, total: SITE_SIDECAR_FILES.length };
 function siteLoadTick() {   // the loading screen's bar and count
   const f = document.getElementById('slFill'), t = document.getElementById('slTxt'); if (!f) return;
-  f.style.width = (6 + SITE_LOAD.done / SITE_LOAD.total * 88) + '%';
-  t.textContent = SITE_LOAD.done < SITE_LOAD.total ? 'Loading models Â· ' + SITE_LOAD.done + ' of ' + SITE_LOAD.total : 'Unpacking textures';
+  f.style.width = (6 + (SITE_LOAD.total ? SITE_LOAD.done / SITE_LOAD.total : 0) * 88) + '%';   // a phone waits for no models: total 0
+  t.textContent = !SITE_LOAD.total ? 'Loading' : SITE_LOAD.done < SITE_LOAD.total ? 'Loading models Â· ' + SITE_LOAD.done + ' of ' + SITE_LOAD.total : 'Unpacking textures';
 }
 siteLoadTick();
 // done: fade the screen out (boot calls this), then take it out of the page
 function siteLoadDone() { const el = document.getElementById('siteLoad'); if (!el || el.classList.contains('done')) return; const f = document.getElementById('slFill'); if (f) f.style.width = '100%'; el.classList.add('done'); setTimeout(() => el.remove(), 600); }
 const SITE_SIDECARS = Promise.all(SITE_SIDECAR_FILES.map(n => loadSidecar(n, SITE_LOAD).then(ok => { siteLoadTick(); return ok; })))
-  .then(() => Promise.all([astroInit(), habInit(), SITE_SIDECAR_LATE.length ? true : radarInit()])).then(rs => rs.every(Boolean), () => false);
-const SITE_SIDECARS_LATE = SITE_SIDECARS.then(() => Promise.all(SITE_SIDECAR_LATE.map(n => loadSidecar(n, { done: 0 }))))
-  .then(() => SITE_SIDECAR_LATE.length ? radarInit() : true)
-  .then(ok => { if (SITE_SIDECAR_LATE.length && state === 'site') { try { drawHeroArt(); heroKeepStill(); } catch (e) {} } return !!ok; }, () => false);
+  .then(() => SITE_SIDECAR_FILES.length ? Promise.all([astroInit(), habInit(), radarInit()]) : [false]).then(rs => rs.every(Boolean), () => false);
+// a phone's set: after the page's own load (scripts added before it would hold the load event, and the first screen, up),
+// and a breath more for the first paint and the fonts. Resolves true once the models are in and unpacked.
+const SITE_AFTER_LOAD = new Promise(r => { if (document.readyState === 'complete') r(); else addEventListener('load', () => r(), { once: true }); }).then(() => new Promise(r => setTimeout(r, 600)));
+const SITE_SIDECARS_LATE = (SITE_SIDECAR_LATE.length ? SITE_SIDECARS.then(() => SITE_AFTER_LOAD) : SITE_SIDECARS)
+  .then(() => Promise.all(SITE_SIDECAR_LATE.map(n => loadSidecar(n, { done: 0 }))))
+  .then(() => SITE_SIDECAR_LATE.length ? Promise.all([astroInit(), habInit(), radarInit()]).then(rs => rs.every(Boolean)) : SITE_SIDECARS, () => false);
 /* The game's own sidecars, fetched once the page is up. Each is a plain script tag (so it works from a page opened
    straight off disk, where fetch() is blocked); a missing file resolves as a failure and that model's built
    fallback is used. In two sets (2026-10-09, "optimize for mobile and game"): the first phases' models, which the entry
@@ -19622,7 +19707,7 @@ function loadSidecar(name, count) {   // count: the tally it adds to (the site's
    pictures use the built fallbacks (the trailer's crew and cabin parts, the suits' poses). Everywhere else they load
    straight after the site's own, as before. */
 let gameSidecarsGo = null;
-const GAME_SIDECARS = new Promise(go => { gameSidecarsGo = go; }).then(() => SITE_SIDECARS).then(() => Promise.all(GAME_SIDECAR_FILES.map(n => loadSidecar(n))))   // not .map(loadSidecar): map's index would land in `count`, and the gate's bar stuck at "1 of 26" for as long as it existed
+const GAME_SIDECARS = new Promise(go => { gameSidecarsGo = go; }).then(() => SITE_SIDECARS_LATE).then(() => Promise.all(GAME_SIDECAR_FILES.map(n => loadSidecar(n))))   // not .map(loadSidecar): map's index would land in `count`, and the gate's bar stuck at "1 of 26" for as long as it existed
   .then(() => Promise.all([gateInit(), wreckInit(), padInit(), oxyInit(), shovelInit(), potatoInit()]))
   .then(rs => rs.every(Boolean), () => false);
 GAME_SIDECARS.then(() => { GAME_READY = true; });
@@ -19631,7 +19716,7 @@ const GAME_SIDECARS_LATE = GAME_SIDECARS.then(() => Promise.all(GAME_SIDECAR_LAT
   .then(rs => rs.every(Boolean), () => false);
 GAME_SIDECARS_LATE.then(() => { GAME_LATE_READY = true; try { fallRepose(); } catch (e) {} });
 if (!TOUCH_ONLY) gameSidecarsGo();
-const SIDECARS = Promise.all([SITE_SIDECARS, SITE_SIDECARS_LATE, GAME_SIDECARS, GAME_SIDECARS_LATE]).then(rs => rs.every(Boolean));
+const SIDECARS = Promise.all([SITE_SIDECARS_LATE, GAME_SIDECARS, GAME_SIDECARS_LATE]).then(rs => rs.every(Boolean));   // SITE_SIDECARS_LATE carries the site set's result on either kind of device
 /* Entering the game before its models are in: a small panel with a bar, which hands over the moment they land.
    Thirty seconds is the ceiling — past that the game starts with whatever has arrived and the fallbacks. */
 function gameLoadGate(next, late) {   // late: the second set (GAME_SIDECAR_LATE), for a phase from Houston on reached before it is in
@@ -19643,7 +19728,7 @@ function gameLoadGate(next, late) {   // late: the second set (GAME_SIDECAR_LATE
   gameSidecarsGo();   // on a touch-only device this is where the game's models start loading (see GAME_SIDECARS)
   const lateNow = () => gameLoadGate.late, LOADF = () => lateNow() ? GAME_LOAD_LATE : GAME_LOAD, ready = () => lateNow() ? GAME_LATE_READY : GAME_READY;
   let el = document.getElementById('loadGate');
-  if (!el) { el = document.createElement('div'); el.id = 'loadGate'; el.innerHTML = '<div class="panel lg"><img class="lgPatch" src="mars-crash-logo.png" alt="" onerror="this.remove()"><div class="lgBody"><b>LOADING MARS</b><small id="lgTxt"></small><div class="lgBar"><i id="lgFill"></i></div></div></div>'; document.body.appendChild(el); }
+  if (!el) { el = document.createElement('div'); el.id = 'loadGate'; el.innerHTML = '<div class="panel lg"><img class="lgPatch" src="mars-crash-logo.webp" alt="" onerror="this.remove()"><div class="lgBody"><b>LOADING MARS</b><small id="lgTxt"></small><div class="lgBar"><i id="lgFill"></i></div></div></div>'; document.body.appendChild(el); }
   el.style.display = 'flex';
   const t0 = performance.now();
   const tick = () => {
